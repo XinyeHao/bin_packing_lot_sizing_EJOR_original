@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 算例与结果（按需调整：若需版本管理算例/结果，可删除对应行）
+instances/*
+!instances/.gitkeep
+result/*
+!result/.gitkeep
+
+# 系统文件
+.DS_Store
+Thumbs.db
