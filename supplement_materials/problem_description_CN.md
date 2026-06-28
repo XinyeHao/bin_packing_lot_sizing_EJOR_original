@@ -1,6 +1,8 @@
-# 集成装箱与多级批量计划问题（配置相关装箱过程）
+# 考虑时效限制的固化装箱调度问题（无装配工序）
 
-> 来源：Hao, X., Zheng, L., Li, N., & Zhang, C. (2022). Integrated bin packing and lot-sizing problem considering the configuration-dependent bin packing process. *European Journal of Operational Research*, 303, 581–592.
+> 基于 Hao et al. (2022) EJOR 模型修改：
+> - 去除装配工序，固化后的物料即为最终产品；
+> - 增加 WIP（待固化物料）的时效限制：每个物料有最晚必须加工（进罐）时间，超过该时间则报废。
 
 ---
 
@@ -8,28 +10,30 @@
 
 ### 1.1 背景与生产流程
 
-本文研究航空制造工厂中复合材料航空产品的生产调度问题。生产系统采用多品种、小批量模式，包含两个主要阶段（见图 1）：
+生产系统仅包含**固化（装箱）阶段**，取消后续装配工序。固化后的物料直接作为最终产品满足外部需求。
 
-**第一阶段——固化（装箱过程）**  
-各物料放置于专用托盘上，送入不同长度的工业热压罐（autoclave，即“箱子”）进行固化。同一热压罐内只能处理具有**相同固化配置**（如相同温度、压力）的物料，不同配置的物料不可混装。热压罐选定某一配置并完成 setup 后，须持续运行与该配置对应的固化时长；固化结束后托盘取出，已固化物料卸载。
+**固化（装箱过程）**  
+各WIP（待固化物料）放置于专用托盘上，送入不同长度的工业热压罐进行固化。同一热压罐内只能处理具有**相同固化配置**的物料。热压罐选定配置并完成 setup 后，须持续运行对应时长。
 
-**第二阶段——装配**  
-固化后的物料按物料清单（BOM）装配为复合成品，并向客户交付。
+**时效限制（新增）**  
+每个WIP都有一个**最晚必须加工时间** $D_i$。WIP 必须在时段 $t \le D_i$ 被投入热压罐（即 X 决策对应的加工开始时间），否则该WIP报废，无法用于满足需求。
 
-由于固化阶段本质上是装箱过程，同时各物料的批量计划（lot-sizing）决策需一并确定，该问题可归结为**集成装箱与批量计划问题（BP-LSP）**，其核心特征为**配置相关的装箱过程（configuration-dependent bin packing process）**：
+由于固化阶段是配置相关的装箱过程，且各WIP的批量计划需同时确定，该问题可归结为**带时效限制的配置相关装箱调度问题**，核心特征：
 
-- 热压罐**可重配置**：只有为某配置完成 setup 后，该配置对应的物料才能在其中加工；
-- 加工时间**依赖配置**：选定配置后，固化状态须持续对应时长；
-- 装箱决策与批量计划决策**耦合**：第一阶段装箱过多可降低生产成本，但会增加第二阶段等待装配的 holding 成本；且需装箱的物料集合由装配需求内生决定，而非传统 BPP 中给定的固定物品集。
+- 热压罐**可重配置**；
+- 加工时间**依赖配置**；
+- 各WIP具有**硬时效窗口**：必须在 $D_i$ 之前完成进罐，否则报废；
+- 装箱决策直接服务于最终需求（无装配拉动）。
 
 ### 1.2 基本假设
 
 1. 所有输入参数已知，为**确定性**问题。
-2. 瓶颈在固化阶段，**装配阶段视为无产能约束**。
-3. 成品（end item）外部需求允许**延期交货（backorder）**；非成品（固化物料）无外部需求。
-4. 固化过程持续若干时段，须考虑**提前期（lead time）**，为计划时段单位长度（UTP）的整数倍：$l_{ti} = \left\lceil \dfrac{\text{curingTime}}{\text{UTP}} \right\rceil$。例如 UTP = 8 h 时，固化时间 12 h 的配置对应提前期 $\lceil 12/8 \rceil = 2$。
-5. 托盘宽度相同、长度不同；托盘在热压罐内**单行水平排列**，可容纳托盘数由热压罐长度与已分配托盘累计长度决定。
+2. 瓶颈仅在固化阶段。
+3. 最终产品（固化后的WIP）外部需求允许**延期交货（backorder）**。
+4. 固化过程有**提前期** $l_{ti}$。
+5. 托盘单行排列，容量由累计长度决定。
 6. 各尺寸托盘数量充足。
+7. WIP 超过最晚加工时间 $D_i$ 即报废，不再产生有效产出。
 
 ---
 
@@ -39,129 +43,101 @@
 
 | 符号 | 含义 |
 |------|------|
-| $T$ | 计划期内时段集合，下标 $t,\, t'$ |
-| $I$ | 全部物料集合，下标 $i,\, i'$ |
-| $End^p$ | 成品（end item）集合，$End^p \subset I$，下标 $j$ |
+| $T$ | 计划期内时段集合，下标 $t$ |
+| $I$ | WIP（待固化物料 / 最终产品）集合，下标 $i$ |
 | $U$ | 固化配置集合，下标 $u$ |
-| $M$ | 热压罐（autoclave）集合，下标 $m$ |
+| $M$ | 热压罐集合，下标 $m$ |
 
 ### 2.2 参数
 
 | 符号 | 含义 |
 |------|------|
-| $l_{ti}$ | 固化物料 $i$ 的生产提前期 |
-| $b_{iu}$ | 若物料 $i$ 在配置 $u$ 下固化则为 1，否则为 0 |
-| $l_u$ | 固化配置 $u$ 的生产提前期；若 $b_{iu}=b_{i'u}=1$，则 $l_{ti}=l_{ti'}=l_u$ |
-| $r_{ij}$ | 按 BOM，装配 1 单位成品 $j$ 所需固化物料 $i$ 的数量 |
-| $d_{jt}$ | 时段 $t$ 成品 $j$ 的外部需求 |
-| $v_i$ | 与固化物料 $i$ 匹配的托盘长度 |
-| $q_m$ | 热压罐 $m$ 可容纳的最大累计托盘长度 |
+| $l_{ti}$ | 物料 $i$ 的固化提前期 |
+| $b_{iu}$ | 若物料 $i$ 需在配置 $u$ 下固化则为 1 |
+| $l_u$ | 配置 $u$ 的固化持续时长（提前期） |
+| $d_{it}$ | 时段 $t$ 物料 $i$ 的外部需求 |
+| $D_i$ | 物料 $i$ 的**最晚加工时段**（必须在 $t \le D_i$ 投入热压罐，否则报废） |
+| $v_i$ | 物料 $i$ 的托盘长度 |
+| $q_m$ | 热压罐 $m$ 的最大累计托盘长度 |
 | $p_{cum}$ | 热压罐 $m$ 在配置 $u$ 下的生产成本 |
-| $h_{ci}$ | 物料 $i$ 单位库存、单位时段 holding 成本 |
-| $bc_j$ | 成品 $j$ 单位延期、单位时段 backorder 成本 |
+| $h_{ci}$ | 物料 $i$ 的单位 holding 成本 |
+| $bc_i$ | 物料 $i$ 的单位 backorder 成本 |
 
 ### 2.3 决策变量
 
 | 符号 | 含义 |
 |------|------|
 | $S_{it}^+$ | 时段 $t$ 末物料 $i$ 的库存量 |
-| $S_{jt}^-$ | 时段 $t$ 末成品 $j$ 的延期量 |
+| $S_{it}^-$ | 时段 $t$ 末物料 $i$ 的延期量 |
 | $X_{imt}$ | 时段 $t$ 投入热压罐 $m$ 的物料 $i$ 数量 |
-| $Y_{umt}$ | 若时段 $t$ 热压罐 $m$ 为配置 $u$ 做 setup 则为 1，否则为 0（setup 后生产状态持续 $l_u$ 个时段） |
-| $Z_{umt}$ | 若时段 $t$ 热压罐 $m$ 在配置 $u$ 下运行则为 1，否则为 0 |
-| $A_{jt}$ | 时段 $t$ 装配的成品 $j$ 数量 |
+| $Y_{umt}$ | 时段 $t$ 热压罐 $m$ 为配置 $u$ 做 setup（1/0） |
+| $Z_{umt}$ | 时段 $t$ 热压罐 $m$ 在配置 $u$ 下运行（1/0） |
 
 ---
 
 ## 3. 数学模型
 
-本文先给出**原始集成模型（OIM）**，再通过约束替换将其简化为**简化集成模型（SIM）**；后文所称 **IM** 均指 SIM。
+由于取消装配，问题简化为**单阶段固化调度 + 时效限制**。我们直接给出简化模型（IM）。
 
-### 3.1 原始集成模型（OIM）
-
-**目标函数**——最小化计划期内总成本（holding、backorder 与热压罐生产成本）：
+**目标函数**（holding + backorder + 热压罐生产成本）：
 
 $$
-\min \sum_{t \in T} \sum_{i \in I} h_{ci} \cdot S_{it}^+ + \sum_{t \in T} \sum_{j \in End^p} bc_j \cdot S_{jt}^- + \sum_{t \in T} \sum_{m \in M} \sum_{u \in U} p_{cum} \cdot Y_{umt} \tag{1}
+\min \sum_{t \in T} \sum_{i \in I} h_{ci} \cdot S_{it}^+ + \sum_{t \in T} \sum_{i \in I} bc_i \cdot S_{it}^- + \sum_{t \in T} \sum_{m \in M} \sum_{u \in U} p_{cum} \cdot Y_{umt} \tag{1}
 $$
 
-**约束条件：**
+**主要约束：**
+
+**库存平衡（直接服务最终需求）：**
 
 $$
-S_{j,t-1}^+ - S_{j,t-1}^- + A_{jt} = d_{jt} + S_{jt}^+ - S_{jt}^- \quad \forall j \in End^p;\; t \in T \tag{2}
+S_{i,t-1}^+ - S_{i,t-1}^- + \sum_{m \in M} X_{i m, t - l_{ti}} = d_{it} + S_{it}^+ - S_{it}^- \quad \forall i \in I;\; t \in T \tag{2}
 $$
 
-$$
-S_{i,t-1}^+ + \sum_{m \in M} X_{i,m,t-l_{ti}} = \sum_{\substack{j \in End^p \\ r_{ij}>0}} r_{ij} \cdot A_{jt} + S_{it}^+ \quad \forall i \in I \setminus End^p;\; t \in T \tag{3}
-$$
+（到达量为提前期 $l_{ti}$ 前投入的 X 之和。）
+
+**热压罐配置约束**（与原模型类似）：
 
 $$
-\sum_{u \in U} Y_{umt} \leq 1 \quad \forall m \in M;\; t \in T \tag{4}
-$$
-
-$$
-\sum_{u \in U} Z_{umt} \leq 1 \quad \forall m \in M;\; t \in T \tag{5}
+\sum_{u \in U} Y_{umt} \leq 1 \quad \forall m \in M;\; t \in T \tag{3}
 $$
 
 $$
-\sum_{t' \in \{t' : t \leq t' \leq t + l_u - 1\}} Y_{u,m,t'} \leq 1 \quad \forall u \in U;\; m \in M;\; t \in T \tag{6}
+\sum_{u \in U} Z_{umt} \leq 1 \quad \forall m \in M;\; t \in T \tag{4}
 $$
 
 $$
-Y_{umt} \leq Z_{u,m,t'} \quad \forall u \in U;\; m \in M;\; t \in T,\; t' \in \{t' : t \leq t' \leq t + l_u - 1\} \tag{7}
+\sum_{t'=\max(t-l_u+1,1)}^{t} Y_{u m t'} = Z_{u m t} \quad \forall u,m,t \tag{5}
+$$
+
+**装箱容量约束：**
+
+$$
+X_{imt} \leq \left\lfloor \frac{q_m}{v_i} \right\rfloor \cdot \left( \sum_{u} b_{iu} Y_{u m t} \right) \quad \forall i,m,t \tag{6}
 $$
 
 $$
-X_{imt} \leq \left\lfloor \frac{q_m}{v_i} \right\rfloor \cdot \left( \sum_{u \in U} b_{iu} \cdot Y_{umt} \right) \quad \forall i \in I \setminus End^p;\; m \in M;\; t \in T \tag{8}
+\sum_i v_i X_{imt} \leq q_m \quad \forall m,t \tag{7}
 $$
 
-$$
-\sum_{i \in I \setminus End^p} v_i \cdot X_{imt} \leq q_m \quad \forall m \in M;\; t \in T \tag{9}
-$$
+**时效限制（新增核心约束）：**
 
 $$
-S_{it}^+,\; S_{jt}^-,\; A_{jt} \in \mathbb{Z}_+ \quad \forall i \in I;\; j \in End^p;\; t \in T \tag{10}
+X_{imt} = 0 \quad \forall i \in I,\; m \in M,\; t > D_i \tag{8}
 $$
 
-$$
-X_{imt} \in \mathbb{Z}_+ \quad \forall i \in I \setminus End^p;\; m \in M;\; t \in T \tag{11}
-$$
+或等价地：仅允许在 $t \le D_i$ 的时段为物料 $i$ 做固化决策。超过 $D_i$ 的投入被视为报废，不产生有效产出。
+
+**变量定义：**
 
 $$
-Y_{umt},\; Z_{umt} \in \{0, 1\} \quad \forall u \in U;\; m \in M;\; t \in T \tag{12}
+S_{it}^+,\ S_{it}^- \ge 0,\quad X_{imt} \in \mathbb{Z}_+,\quad Y_{umt}, Z_{umt} \in \{0,1\}
 $$
 
-**约束说明：**
-
-- **(2)**：成品流量守恒（含外部需求与 backorder）。
-- **(3)**：固化物料库存平衡（需求由装配过程内生，无外部需求）。
-- **(4)**：每个时段初，每台热压罐至多选择一种配置做 setup。
-- **(5)**：每个时段，每台热压罐至多处于一种配置的运行状态。
-- **(6)**：长度为 $l_u$ 的任意时间窗口内，配置 $u$ 的 setup 至多一次。
-- **(7)**：若时段 $t$ 为配置 $u$ 做 setup，则随后 $l_u$ 个时段内热压罐均处于配置 $u$ 的运行状态。
-- **(8)**：装箱与配置的关联——仅与当前配置匹配的物料可投入该热压罐。
-- **(9)**：空间容量约束——投入托盘的累计长度不超过热压罐容量 $q_m$。
-- **(10)–(12)**：变量非负性与整数性。
-
-### 3.2 简化集成模型（SIM / IM）
-
-**命题 1**：下列约束 **(13)** 可替代 OIM 中的约束 **(4)、(6)、(7)**：
-
-$$
-\sum_{t' \in \{t' : \max\{t - l_u + 1,\, 1\} \leq t' \leq t\}} Y_{u,m,t'} = Z_{umt} \quad \forall u \in U;\; m \in M;\; t \in T \tag{13}
-$$
-
-约束 (13) 表示：时段 $t$ 热压罐 $m$ 是否在配置 $u$ 下运行，取决于包括当前时段在内的前 $l_u$ 个时段内是否发生过配置 $u$ 的 setup。
-
-**SIM 形式：**
-
-$$
-\text{[SIM]} \quad \min \ \text{目标函数 (1)}
-$$
-
-$$
-\text{s.t.} \quad \text{约束 (2), (3), (5), (8)–(13)}
-$$
+**模型特点总结：**
+- 无装配变量 A、无 BOM 拉动。
+- 需求直接作用于可固化物料 I。
+- 每个物料具有硬 deadline $D_i$，违反即报废（通过约束 (8) 强制）。
+- 其余机器配置、setup 窗口、容量约束保持与原配置相关装箱模型一致。
 
 ---
 
@@ -169,8 +145,8 @@ $$
 
 | 维度 | 内容 |
 |------|------|
-| 问题类型 | 集成装箱（BPP）+ 多级 capacitated 批量计划（LSP） |
-| 核心特征 | 可重配置热压罐、配置相关加工时间、装配导向的内生装箱需求 |
+| 问题类型 | 配置相关装箱调度（单阶段）+ 时效限制 |
+| 核心特征 | 可重配置热压罐、配置相关加工时间、**WIP 硬 deadline $D_i$（过期报废）** |
 | 成本构成 | holding 成本 + backorder 成本 + 热压罐 setup/生产成本 |
-| 产能约束 | 热压罐长度容量（空间装箱）+ 配置持续时长（时间维度） |
-| 本文采用模型 | SIM（即 IM），基于 Kantorovich 型装箱建模 |
+| 产能约束 | 热压罐长度容量 + 配置持续时长 + **时效窗口约束** |
+| 模型 | 简化 IM（无装配），Kantorovich 型装箱 + deadline 约束 |

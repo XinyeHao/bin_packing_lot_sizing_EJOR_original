@@ -10,15 +10,12 @@ from common.data_models import InstanceData
 from common.paths import INSTANCES_DIR
 from configuration import (
     BACKORDER_COST_MULTIPLIER,
-    BOM_CHOICES,
-    BOM_FALLBACK_CHOICES,
     C_STAR_RANGE,
     DEMAND_CHOICES,
     DEMAND_PERIODS_PER_ITEM,
     DEMO_CONFIG,
     DEMO_INSTANCE_NAME,
     DEMO_INSTANCE_SEED,
-    END_ITEM_HOLDING_MULTIPLIER,
     HOLDING_COST_DIVISOR,
     INSTANCE_BASE_SEED,
     INSTANCE_COUNT_DEFAULT,
@@ -32,25 +29,29 @@ from configuration import (
 )
 
 
-def _generate_bom(end_item_ids: list[str], cured_item_ids: list[str], rng: random.Random) -> dict[str, dict[str, int]]:
-    bom: dict[str, dict[str, int]] = {}
-    for j in end_item_ids:
-        bom[j] = {}
-        for i in cured_item_ids:
-            bom[j][i] = rng.choice(BOM_CHOICES)
-        if all(qty == 0 for qty in bom[j].values()):
-            bom[j][rng.choice(cured_item_ids)] = rng.choice(BOM_FALLBACK_CHOICES)
-    return bom
-
-
-def _generate_demands(end_item_ids: list[str], num_periods: int, rng: random.Random) -> dict[str, dict[int, int]]:
-    demand: dict[str, dict[int, int]] = {j: {} for j in end_item_ids}
+def _generate_demands(item_ids: list[str], num_periods: int, rng: random.Random) -> dict[str, dict[int, int]]:
+    """直接为最终产品（原 cured items）生成时段化需求。"""
+    demand: dict[str, dict[int, int]] = {i: {} for i in item_ids}
     candidate_periods = list(range(1, num_periods + 1))
-    for j in end_item_ids:
+    for i in item_ids:
         periods = rng.sample(candidate_periods, k=min(DEMAND_PERIODS_PER_ITEM, num_periods))
         for t in periods:
-            demand[j][t] = rng.choice(DEMAND_CHOICES)
+            demand[i][t] = rng.choice(DEMAND_CHOICES)
     return demand
+
+
+def _generate_deadlines(item_ids: list[str], demand: dict[str, dict[int, int]], num_periods: int, rng: random.Random) -> dict[str, int]:
+    """为每个 item 生成最晚加工时段（1-based）。策略：基于其需求最晚时段 + 小幅 slack。"""
+    deadlines: dict[str, int] = {}
+    for i in item_ids:
+        if demand[i]:
+            last_d = max(demand[i].keys())
+            slack = rng.choice([0, 1, 2])
+            dl = min(num_periods, last_d + slack)
+        else:
+            dl = num_periods
+        deadlines[i] = dl
+    return deadlines
 
 
 def generate_instance(
@@ -64,19 +65,19 @@ def generate_instance(
 
     config_ids = [f"u{k}" for k in range(set_config.num_configs)]
     machine_ids = [f"m{k}" for k in range(set_config.num_machines)]
-    cured_item_ids = [f"i{k}" for k in range(set_config.num_cured_items)]
-    end_item_ids = [f"j{k}" for k in range(set_config.num_end_items)]
+    # 新问题：只有“cured items”，它们即为最终产品
+    item_ids = [f"i{k}" for k in range(set_config.num_cured_items)]   # 仍用 cured_item_ids 字段名以减少代码改动
 
     config_lead_times = {u: rng.choice(LEAD_TIME_CHOICES) for u in config_ids}
     item_config: dict[str, str] = {}
     item_lead_times: dict[str, int] = {}
-    for i in cured_item_ids:
+    for i in item_ids:
         u = rng.choice(config_ids)
         item_config[i] = u
         item_lead_times[i] = config_lead_times[u]
 
     tray_lengths: dict[str, float] = {}
-    for i in cured_item_ids:
+    for i in item_ids:
         if rng.random() < TRAY_LENGTH_LONG_PROB:
             tray_lengths[i] = rng.uniform(*TRAY_LENGTH_LONG_RANGE)
         else:
@@ -94,16 +95,13 @@ def generate_instance(
             production_costs[m][u] = c_star * l_u * machine_capacities[m] / min_q
 
     holding_costs: dict[str, float] = {}
-    for i in cured_item_ids:
+    for i in item_ids:
         holding_costs[i] = c_star * item_lead_times[i] / (HOLDING_COST_DIVISOR * num_periods)
 
-    bom = _generate_bom(end_item_ids, cured_item_ids, rng)
-    for j in end_item_ids:
-        related = sum(bom[j][i] * holding_costs[i] for i in cured_item_ids)
-        holding_costs[j] = END_ITEM_HOLDING_MULTIPLIER * related
+    backorder_costs = {i: BACKORDER_COST_MULTIPLIER * holding_costs[i] for i in item_ids}
 
-    backorder_costs = {j: BACKORDER_COST_MULTIPLIER * holding_costs[j] for j in end_item_ids}
-    demand = _generate_demands(end_item_ids, num_periods, rng)
+    demand = _generate_demands(item_ids, num_periods, rng)
+    deadlines = _generate_deadlines(item_ids, demand, num_periods, rng)
 
     return InstanceData(
         name=f"set_{set_config.set_type.lower()}_{instance_id:02d}",
@@ -111,8 +109,8 @@ def generate_instance(
         num_periods=num_periods,
         config_ids=config_ids,
         machine_ids=machine_ids,
-        cured_item_ids=cured_item_ids,
-        end_item_ids=end_item_ids,
+        cured_item_ids=item_ids,          # 这些 item 现在就是最终产品
+        end_item_ids=[],                  # 无装配
         config_lead_times=config_lead_times,
         item_config=item_config,
         item_lead_times=item_lead_times,
@@ -121,8 +119,9 @@ def generate_instance(
         production_costs=production_costs,
         holding_costs=holding_costs,
         backorder_costs=backorder_costs,
-        bom=bom,
+        bom={},
         demand=demand,
+        deadlines=deadlines,
         seed=seed,
     )
 

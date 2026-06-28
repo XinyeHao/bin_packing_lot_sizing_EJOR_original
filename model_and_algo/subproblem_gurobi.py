@@ -62,6 +62,13 @@ def solve_subproblem_gurobi(
     for t_idx in range(num_t):
         model.addConstr(gp.quicksum(data.v_i[i_idx] * X[i_idx, t_idx] for i_idx in range(num_i)) <= q)
 
+    if hasattr(data, "deadlines") and data.deadlines:
+        for i_idx in range(num_i):
+            dl = data.deadlines[i_idx]
+            for t_idx in range(num_t):
+                if (t_idx + 1) > dl:
+                    model.addConstr(X[i_idx, t_idx] == 0, name=f"dl_{i_idx}_{t_idx}")
+
     model.optimize()
 
     x: dict[tuple[int, int], int] = {}

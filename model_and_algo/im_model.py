@@ -44,16 +44,15 @@ def build_im_model(
     num_m = len(data.machines)
     num_u = len(data.configs)
     num_i = len(data.cured_items)
-    num_j = len(data.end_items)
-    num_all = len(data.all_items)
+    num_j = len(data.end_items)  # 通常为 0
 
     int_type = GRB.CONTINUOUS if linear_relaxation else GRB.INTEGER
     bin_type = GRB.CONTINUOUS if linear_relaxation else GRB.BINARY
     bin_ub = 1.0
 
-    S_plus = model.addVars(num_all, num_t, vtype=int_type, lb=0, name="S_plus")
-    S_minus = model.addVars(num_j, num_t, vtype=int_type, lb=0, name="S_minus")
-    A = model.addVars(num_j, num_t, vtype=int_type, lb=0, name="A")
+    # 简化：只有 cured_items（现为最终产品）
+    S_plus = model.addVars(num_i, num_t, vtype=int_type, lb=0, name="S_plus")
+    S_minus = model.addVars(num_i, num_t, vtype=int_type, lb=0, name="S_minus")
     X = model.addVars(num_i, num_m, num_t, vtype=int_type, lb=0, name="X")
     Y = model.addVars(num_u, num_m, num_t, vtype=bin_type, lb=0, ub=bin_ub, name="Y")
     Z = model.addVars(num_u, num_m, num_t, vtype=bin_type, lb=0, ub=bin_ub, name="Z")
@@ -63,8 +62,8 @@ def build_im_model(
             Y[u_idx, m_idx, t_idx].lb = val
             Y[u_idx, m_idx, t_idx].ub = val
 
-    holding = gp.quicksum(data.h_c[item_idx] * S_plus[item_idx, t_idx] for item_idx in range(num_all) for t_idx in range(num_t))
-    backorder = gp.quicksum(data.bc_j[j_idx] * S_minus[j_idx, t_idx] for j_idx in range(num_j) for t_idx in range(num_t))
+    holding = gp.quicksum(data.h_c[i] * S_plus[i, t] for i in range(num_i) for t in range(num_t))
+    backorder = gp.quicksum(data.bc_j[i] * S_minus[i, t] for i in range(num_i) for t in range(num_t))
     production = gp.quicksum(
         data.p_cum[m_idx][u_idx] * Y[u_idx, m_idx, t_idx]
         for u_idx in range(num_u)
@@ -73,31 +72,23 @@ def build_im_model(
     )
     model.setObjective(holding + backorder + production, GRB.MINIMIZE)
 
-    cured_offset = 0
-    end_offset = num_i
-
-    for j_idx in range(num_j):
-        item_idx = end_offset + j_idx
-        for t_idx in range(num_t):
-            prev_inv = 0 if t_idx == 0 else S_plus[item_idx, t_idx - 1]
-            prev_bo = 0 if t_idx == 0 else S_minus[j_idx, t_idx - 1]
-            model.addConstr(
-                prev_inv - prev_bo + A[j_idx, t_idx]
-                == data.d_jt[j_idx][t_idx] + S_plus[item_idx, t_idx] - S_minus[j_idx, t_idx],
-                name=f"flow_end_{j_idx}_{t_idx}",
-            )
-
+    # 直接需求平衡（cured items 即最终产品）
     for i_idx in range(num_i):
         for t_idx in range(num_t):
             prev_inv = 0 if t_idx == 0 else S_plus[i_idx, t_idx - 1]
+            prev_bo = 0 if t_idx == 0 else S_minus[i_idx, t_idx - 1]
             prod_in = gp.quicksum(
                 X[i_idx, m_idx, prod_t]
                 for m_idx in range(num_m)
                 for prod_t in [t_idx - int(data.l_ti[i_idx])]
                 if prod_t >= 0
             )
-            demand = gp.quicksum(data.r_ij[i_idx][j_idx] * A[j_idx, t_idx] for j_idx in range(num_j))
-            model.addConstr(prev_inv + prod_in == demand + S_plus[i_idx, t_idx], name=f"flow_cured_{i_idx}_{t_idx}")
+            dem = data.d_it[i_idx][t_idx] if hasattr(data, "d_it") and data.d_it else 0
+            model.addConstr(
+                prev_inv - prev_bo + prod_in
+                == dem + S_plus[i_idx, t_idx] - S_minus[i_idx, t_idx],
+                name=f"flow_item_{i_idx}_{t_idx}",
+            )
 
     for m_idx in range(num_m):
         for t_idx in range(num_t):
@@ -127,10 +118,18 @@ def build_im_model(
                 name=f"capacity_{m_idx}_{t_idx}",
             )
 
+    # 时效限制：超过 deadline 的时段禁止投入该 item
+    if hasattr(data, "deadlines") and data.deadlines:
+        for i_idx in range(num_i):
+            dl = data.deadlines[i_idx]  # 1-based
+            for m_idx in range(num_m):
+                for t_idx in range(num_t):
+                    if (t_idx + 1) > dl:
+                        model.addConstr(X[i_idx, m_idx, t_idx] == 0, name=f"deadline_{i_idx}_{m_idx}_{t_idx}")
+
     vars_bundle = {
         "S_plus": S_plus,
         "S_minus": S_minus,
-        "A": A,
         "X": X,
         "Y": Y,
         "Z": Z,
@@ -186,19 +185,14 @@ def solve_im(
 
     num_t = len(data.periods)
     num_i = len(data.cured_items)
-    num_j = len(data.end_items)
-    num_all = len(data.all_items)
-    end_offset = num_i
 
     holding_cost = sum(
-        data.h_c[item_idx] * vars_bundle["S_plus"][item_idx, t_idx].X
-        for item_idx in range(num_all)
-        for t_idx in range(num_t)
+        data.h_c[i] * vars_bundle["S_plus"][i, t].X
+        for i in range(num_i) for t in range(num_t)
     )
     backorder_cost = sum(
-        data.bc_j[j_idx] * vars_bundle["S_minus"][j_idx, t_idx].X
-        for j_idx in range(num_j)
-        for t_idx in range(num_t)
+        data.bc_j[i] * vars_bundle["S_minus"][i, t].X
+        for i in range(num_i) for t in range(num_t)
     )
     production_cost = sum(
         data.p_cum[m_idx][u_idx] * vars_bundle["Y"][u_idx, m_idx, t_idx].X
@@ -208,17 +202,15 @@ def solve_im(
     )
 
     inventory = {
-        data.all_items[item_idx]: {data.periods[t_idx]: vars_bundle["S_plus"][item_idx, t_idx].X for t_idx in range(num_t)}
-        for item_idx in range(num_all)
+        data.cured_items[i]: {data.periods[t]: vars_bundle["S_plus"][i, t].X for t in range(num_t)}
+        for i in range(num_i)
     }
     backorder = {
-        data.end_items[j_idx]: {data.periods[t_idx]: vars_bundle["S_minus"][j_idx, t_idx].X for t_idx in range(num_t)}
-        for j_idx in range(num_j)
+        data.cured_items[i]: {data.periods[t]: vars_bundle["S_minus"][i, t].X for t in range(num_t)}
+        for i in range(num_i)
     }
-    assembly = {
-        data.end_items[j_idx]: {data.periods[t_idx]: vars_bundle["A"][j_idx, t_idx].X for t_idx in range(num_t)}
-        for j_idx in range(num_j)
-    }
+    assembly = {}   # 无装配
+
     packing = {
         data.machines[m_idx]: {
             data.cured_items[i_idx]: {data.periods[t_idx]: vars_bundle["X"][i_idx, m_idx, t_idx].X for t_idx in range(num_t)}

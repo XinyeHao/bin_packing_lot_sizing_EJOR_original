@@ -64,10 +64,14 @@ DEFAULT_MIP_GAP = 0.05
 DEFAULT_LIM_TIME_LIMIT = 300.0
 
 DEFAULT_CG_MAX_ITERATIONS = 1000
-DEFAULT_CG_RC_TOLERANCE = -0.1
+# 列生成 LRMP 最优性：每台机器 reduced cost >= -DEFAULT_CG_RC_TOLERANCE 时停止
+DEFAULT_CG_RC_TOLERANCE = 1e-6
 DEFAULT_CG_IMPROVE_TOLERANCE = 1e-6
 DEFAULT_CG_INIT_TIME_LIMIT = 90.0
 DEFAULT_CG_INIT_TIME_CAP = 180.0
+# 0 表示按机器数并行；>0 为进程池大小
+DEFAULT_CG_PRICING_WORKERS = 0
+DEFAULT_CG_PRICING_TIME_LIMIT = 60.0
 
 CGFO_THRESHOLD_I = 0.0
 CGFO_THRESHOLD_II = 0.10
@@ -151,7 +155,7 @@ CHECKER_TOL = {
     "subproblem": 1e-3,
     "instance_backorder": 1e-6,
     "bound_order": 1e-3,
-    "cg_convergence": -0.1,
+    "cg_convergence": 1e-6,
     "cg_column_select": 1e-6,
     "mip_gap_report": 0.01,
     "bldp_dp": 1e-9,

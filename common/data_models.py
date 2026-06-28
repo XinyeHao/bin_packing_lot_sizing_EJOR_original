@@ -16,7 +16,6 @@ class InstanceData:
     config_ids: list[str]
     machine_ids: list[str]
     cured_item_ids: list[str]
-    end_item_ids: list[str]
     config_lead_times: dict[str, int]
     item_config: dict[str, str]
     item_lead_times: dict[str, int]
@@ -25,12 +24,15 @@ class InstanceData:
     production_costs: dict[str, dict[str, float]]
     holding_costs: dict[str, float]
     backorder_costs: dict[str, float]
-    bom: dict[str, dict[str, int]]
     demand: dict[str, dict[int, int]]
+    # 以下为可选/新字段（有默认值，必须放在最后）
+    end_item_ids: list[str] = field(default_factory=list)   # 已废弃（无装配）
+    bom: dict[str, dict[str, int]] = field(default_factory=dict)  # 已废弃
+    deadlines: dict[str, int] = field(default_factory=dict)   # 新：最晚加工时段（1-based）
     seed: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d = {
             "name": self.name,
             "set_type": self.set_type,
             "num_periods": self.num_periods,
@@ -48,8 +50,10 @@ class InstanceData:
             "backorder_costs": self.backorder_costs,
             "bom": self.bom,
             "demand": {k: {str(t): v for t, v in vals.items()} for k, vals in self.demand.items()},
+            "deadlines": self.deadlines,
             "seed": self.seed,
         }
+        return d
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> InstanceData:
@@ -64,7 +68,7 @@ class InstanceData:
             config_ids=list(data["config_ids"]),
             machine_ids=list(data["machine_ids"]),
             cured_item_ids=list(data["cured_item_ids"]),
-            end_item_ids=list(data["end_item_ids"]),
+            end_item_ids=list(data.get("end_item_ids", [])),
             config_lead_times={k: int(v) for k, v in data["config_lead_times"].items()},
             item_config=dict(data["item_config"]),
             item_lead_times={k: int(v) for k, v in data["item_lead_times"].items()},
@@ -78,9 +82,10 @@ class InstanceData:
             backorder_costs={k: float(v) for k, v in data["backorder_costs"].items()},
             bom={
                 j: {i: int(v) for i, v in items.items()}
-                for j, items in data["bom"].items()
+                for j, items in data.get("bom", {}).items()
             },
             demand=demand,
+            deadlines={k: int(v) for k, v in data.get("deadlines", {}).items()},
             seed=data.get("seed"),
         )
 
@@ -108,13 +113,15 @@ class ProcessedInstance:
     q_m: list[float]
     p_cum: list[list[float]]
     h_c: list[float]
-    bc_j: list[float]
-    r_ij: list[list[int]]
-    d_jt: list[list[int]]
+    bc_j: list[float]          # 现用于 cured_items（final items）
+    r_ij: list[list[int]]     # 废弃（无装配）
+    d_jt: list[list[int]]     # 废弃，改用 d_it
+    d_it: list[list[int]]     # 新：cured items（现为最终产品）的需求
     bom_parents: list[list[tuple[int, int]]]
     items_by_config: list[list[int]]
     config_of_item: list[int]
     min_q: float
+    deadlines: list[int]      # 新：每个 cured item 的最晚加工时段（1-based）
 
 
 @dataclass

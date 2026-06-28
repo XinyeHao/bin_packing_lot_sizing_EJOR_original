@@ -83,6 +83,8 @@ def solve_subproblem_bldp(
         for t_idx in range(num_t):
             delta = [0.0] * num_i
             for i_idx in items:
+                if hasattr(data, "deadlines") and (t_idx + 1) > data.deadlines[i_idx]:
+                    continue
                 arrival = t_idx + int(data.l_ti[i_idx])
                 if arrival < num_t:
                     delta[i_idx] = alpha[i_idx][arrival]
