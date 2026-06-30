@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from common.data_models import InstanceData, ProcessedInstance
+from configuration import SCRAP_COST_MULTIPLIER
 
 
 def load_instance(path: str | Path) -> InstanceData:
@@ -72,6 +73,18 @@ def preprocess(instance: InstanceData) -> ProcessedInstance:
     # deadlines（1-based）
     deadlines = [instance.deadlines.get(i, num_t) for i in cured_items]
 
+    w_i: list[int] = []
+    sc_i: list[float] = []
+    for i_idx, item in enumerate(cured_items):
+        if item in instance.wip_quantities:
+            w_i.append(int(instance.wip_quantities[item]))
+        else:
+            w_i.append(int(sum(d_it[i_idx])))
+        if item in instance.scrap_costs:
+            sc_i.append(float(instance.scrap_costs[item]))
+        else:
+            sc_i.append(SCRAP_COST_MULTIPLIER * bc_j[i_idx])
+
     # 兼容旧字段 d_jt（如果有 end 则保留，否则置空）
     d_jt = [[0] * num_t for _ in range(max(1, num_j))]
     if end_items:
@@ -108,6 +121,8 @@ def preprocess(instance: InstanceData) -> ProcessedInstance:
         config_of_item=config_of_item,
         min_q=min_q,
         deadlines=deadlines,
+        w_i=w_i,
+        sc_i=sc_i,
     )
 
 

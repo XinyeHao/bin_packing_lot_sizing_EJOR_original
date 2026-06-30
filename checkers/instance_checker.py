@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from common.data_models import InstanceData, ProcessedInstance
 from checkers.report import CheckReport
-from configuration import BACKORDER_COST_MULTIPLIER, CHECKER_TOL
+from configuration import BACKORDER_COST_MULTIPLIER, CHECKER_TOL, SCRAP_COST_MULTIPLIER
 
 
 def check_instance_raw(instance: InstanceData) -> CheckReport:
@@ -34,6 +34,19 @@ def check_instance_raw(instance: InstanceData) -> CheckReport:
                 "instance",
                 "backorder_cost",
                 f"成品 {j} backorder 成本 {instance.backorder_costs[j]} != 10 * hc = {expected}",
+            )
+
+    for i in instance.cured_item_ids:
+        bc = instance.backorder_costs.get(i, 0.0)
+        if i in instance.scrap_costs:
+            sc = instance.scrap_costs[i]
+        else:
+            sc = SCRAP_COST_MULTIPLIER * bc
+        if sc <= bc + CHECKER_TOL["instance_backorder"]:
+            report.add_violation(
+                "instance",
+                "scrap_cost",
+                f"物料 {i} 报废成本 {sc} 须大于 backorder 成本 {bc}",
             )
 
     return report

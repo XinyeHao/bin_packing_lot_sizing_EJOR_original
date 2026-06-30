@@ -66,6 +66,7 @@ def solve_subproblem_bldp(
     machine_idx: int,
     alpha: list[list[float]],
     beta: float,
+    rho: list[float] | None = None,
 ) -> SubproblemResult:
     """对单台热压罐求解定价子问题。"""
     num_t = len(data.periods)
@@ -73,6 +74,7 @@ def solve_subproblem_bldp(
     num_i = len(data.cured_items)
     q = data.q_m[machine_idx]
     p_cum = data.p_cum[machine_idx]
+    rho = rho or [0.0] * num_i
 
     eta: list[list[float]] = [[math.inf] * num_t for _ in range(num_u)]
     pack: list[list[dict[int, int]]] = [[{} for _ in range(num_t)] for _ in range(num_u)]
@@ -87,7 +89,7 @@ def solve_subproblem_bldp(
                     continue
                 arrival = t_idx + int(data.l_ti[i_idx])
                 if arrival < num_t:
-                    delta[i_idx] = alpha[i_idx][arrival]
+                    delta[i_idx] = alpha[i_idx][arrival] + rho[i_idx]
             eta[u_idx][t_idx], pack[u_idx][t_idx] = _solve_ukp(items, delta, pcu, q, data.v_i)
 
     phi = [0.0] * (num_t + 1)

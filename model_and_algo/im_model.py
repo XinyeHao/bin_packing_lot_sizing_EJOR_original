@@ -53,6 +53,7 @@ def build_im_model(
     # 简化：只有 cured_items（现为最终产品）
     S_plus = model.addVars(num_i, num_t, vtype=int_type, lb=0, name="S_plus")
     S_minus = model.addVars(num_i, num_t, vtype=int_type, lb=0, name="S_minus")
+    R = model.addVars(num_i, vtype=int_type, lb=0, name="R")
     X = model.addVars(num_i, num_m, num_t, vtype=int_type, lb=0, name="X")
     Y = model.addVars(num_u, num_m, num_t, vtype=bin_type, lb=0, ub=bin_ub, name="Y")
     Z = model.addVars(num_u, num_m, num_t, vtype=bin_type, lb=0, ub=bin_ub, name="Z")
@@ -70,7 +71,8 @@ def build_im_model(
         for m_idx in range(num_m)
         for t_idx in range(num_t)
     )
-    model.setObjective(holding + backorder + production, GRB.MINIMIZE)
+    scrap = gp.quicksum(data.sc_i[i] * R[i] for i in range(num_i))
+    model.setObjective(holding + backorder + production + scrap, GRB.MINIMIZE)
 
     # 直接需求平衡（cured items 即最终产品）
     for i_idx in range(num_i):
@@ -127,9 +129,21 @@ def build_im_model(
                     if (t_idx + 1) > dl:
                         model.addConstr(X[i_idx, m_idx, t_idx] == 0, name=f"deadline_{i_idx}_{m_idx}_{t_idx}")
 
+    # WIP 物料守恒：进罐量 + 报废量 = 初始 WIP
+    for i_idx in range(num_i):
+        dl = data.deadlines[i_idx]
+        wip_in = gp.quicksum(
+            X[i_idx, m_idx, t_idx]
+            for m_idx in range(num_m)
+            for t_idx in range(num_t)
+            if (t_idx + 1) <= dl
+        )
+        model.addConstr(wip_in + R[i_idx] == data.w_i[i_idx], name=f"wip_balance_{i_idx}")
+
     vars_bundle = {
         "S_plus": S_plus,
         "S_minus": S_minus,
+        "R": R,
         "X": X,
         "Y": Y,
         "Z": Z,
@@ -200,6 +214,8 @@ def solve_im(
         for m_idx in range(len(data.machines))
         for t_idx in range(num_t)
     )
+    scrap_cost = sum(data.sc_i[i] * vars_bundle["R"][i].X for i in range(num_i))
+    scrap_qty = {data.cured_items[i]: vars_bundle["R"][i].X for i in range(num_i)}
 
     inventory = {
         data.cured_items[i]: {data.periods[t]: vars_bundle["S_plus"][i, t].X for t in range(num_t)}
@@ -246,6 +262,9 @@ def solve_im(
             "instance_seed": data.raw.seed,
             "set_type": data.raw.set_type,
             "num_periods": data.raw.num_periods,
+            "scrap_cost": scrap_cost,
+            "scrap": scrap_qty,
+            "total_scrap_qty": sum(scrap_qty.values()),
         },
     )
 

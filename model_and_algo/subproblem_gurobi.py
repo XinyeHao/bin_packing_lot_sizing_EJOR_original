@@ -16,6 +16,7 @@ def solve_subproblem_gurobi(
     machine_idx: int,
     alpha: list[list[float]],
     beta: float,
+    rho: list[float] | None = None,
     time_limit: float = DEFAULT_CG_INIT_TIME_LIMIT,
 ) -> SubproblemResult:
     """用 Gurobi 精确求解单台热压罐子问题（用于初始列）。"""
@@ -28,6 +29,7 @@ def solve_subproblem_gurobi(
     num_i = len(data.cured_items)
     q = data.q_m[machine_idx]
     p_cum = data.p_cum[machine_idx]
+    rho = rho or [0.0] * num_i
 
     X = model.addVars(num_i, num_t, vtype=GRB.INTEGER, lb=0, name="X")
     Y = model.addVars(num_u, num_t, vtype=GRB.BINARY, name="Y")
@@ -35,10 +37,14 @@ def solve_subproblem_gurobi(
 
     obj = gp.quicksum(p_cum[u_idx] * Y[u_idx, t_idx] for u_idx in range(num_u) for t_idx in range(num_t))
     for i_idx in range(num_i):
+        dl = data.deadlines[i_idx] if hasattr(data, "deadlines") and data.deadlines else num_t
         for t_idx in range(num_t):
+            if (t_idx + 1) > dl:
+                continue
             arrival = t_idx + int(data.l_ti[i_idx])
             if arrival < num_t:
                 obj -= alpha[i_idx][arrival] * X[i_idx, t_idx]
+            obj -= rho[i_idx] * X[i_idx, t_idx]
     obj -= beta
     model.setObjective(obj, GRB.MINIMIZE)
 

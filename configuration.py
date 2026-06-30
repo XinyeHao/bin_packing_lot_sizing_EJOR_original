@@ -53,7 +53,10 @@ C_STAR_RANGE = (100.0, 150.0)
 HOLDING_COST_DIVISOR = 10.0
 END_ITEM_HOLDING_MULTIPLIER = 1.2
 BACKORDER_COST_MULTIPLIER = 10.0
+SCRAP_COST_MULTIPLIER = 2.0  # sc_i = SCRAP_COST_MULTIPLIER * bc_i，须 > bc_i
 DEMAND_PERIODS_PER_ITEM = 2
+# 最晚进罐 D_i：在 [ceil(DEADLINE_MIN_FRACTION * T), T] 上均匀随机（T=10 时即从 3 起）
+DEADLINE_MIN_FRACTION = 0.3
 
 # ---------------------------------------------------------------------------
 # 求解器默认参数

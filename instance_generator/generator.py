@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 from pathlib import Path
 
@@ -10,7 +11,9 @@ from common.data_models import InstanceData
 from common.paths import INSTANCES_DIR
 from configuration import (
     BACKORDER_COST_MULTIPLIER,
+    SCRAP_COST_MULTIPLIER,
     C_STAR_RANGE,
+    DEADLINE_MIN_FRACTION,
     DEMAND_CHOICES,
     DEMAND_PERIODS_PER_ITEM,
     DEMO_CONFIG,
@@ -30,7 +33,7 @@ from configuration import (
 
 
 def _generate_demands(item_ids: list[str], num_periods: int, rng: random.Random) -> dict[str, dict[int, int]]:
-    """直接为最终产品（原 cured items）生成时段化需求。"""
+    """为每个物料随机抽取若干需求时段。"""
     demand: dict[str, dict[int, int]] = {i: {} for i in item_ids}
     candidate_periods = list(range(1, num_periods + 1))
     for i in item_ids:
@@ -40,18 +43,10 @@ def _generate_demands(item_ids: list[str], num_periods: int, rng: random.Random)
     return demand
 
 
-def _generate_deadlines(item_ids: list[str], demand: dict[str, dict[int, int]], num_periods: int, rng: random.Random) -> dict[str, int]:
-    """为每个 item 生成最晚加工时段（1-based）。策略：基于其需求最晚时段 + 小幅 slack。"""
-    deadlines: dict[str, int] = {}
-    for i in item_ids:
-        if demand[i]:
-            last_d = max(demand[i].keys())
-            slack = rng.choice([0, 1, 2])
-            dl = min(num_periods, last_d + slack)
-        else:
-            dl = num_periods
-        deadlines[i] = dl
-    return deadlines
+def _generate_deadlines(item_ids: list[str], num_periods: int, rng: random.Random) -> dict[str, int]:
+    """最晚进罐 D_i：在计划期后 30% 至 T 之间均匀随机（D_i 过小则不允许）。"""
+    min_dl = max(1, math.ceil(DEADLINE_MIN_FRACTION * num_periods))
+    return {i: rng.randint(min_dl, num_periods) for i in item_ids}
 
 
 def generate_instance(
@@ -99,9 +94,11 @@ def generate_instance(
         holding_costs[i] = c_star * item_lead_times[i] / (HOLDING_COST_DIVISOR * num_periods)
 
     backorder_costs = {i: BACKORDER_COST_MULTIPLIER * holding_costs[i] for i in item_ids}
+    scrap_costs = {i: SCRAP_COST_MULTIPLIER * backorder_costs[i] for i in item_ids}
 
     demand = _generate_demands(item_ids, num_periods, rng)
-    deadlines = _generate_deadlines(item_ids, demand, num_periods, rng)
+    deadlines = _generate_deadlines(item_ids, num_periods, rng)
+    wip_quantities = {i: int(sum(demand[i].values())) for i in item_ids}
 
     return InstanceData(
         name=f"set_{set_config.set_type.lower()}_{instance_id:02d}",
@@ -122,6 +119,8 @@ def generate_instance(
         bom={},
         demand=demand,
         deadlines=deadlines,
+        wip_quantities=wip_quantities,
+        scrap_costs=scrap_costs,
         seed=seed,
     )
 

@@ -29,6 +29,7 @@ def _execute_pricing_job(
         ProcessedInstance,
         int,
         list[list[float]],
+        list[float],
         float,
         bool,
         float,
@@ -40,6 +41,7 @@ def _execute_pricing_job(
         data,
         m_idx,
         alpha,
+        rho,
         beta,
         use_gurobi,
         init_time_limit,
@@ -47,10 +49,10 @@ def _execute_pricing_job(
     ) = job
     if use_gurobi:
         sp = solve_subproblem_gurobi(
-            data, m_idx, alpha, beta, time_limit=init_time_limit
+            data, m_idx, alpha, beta, rho=rho, time_limit=init_time_limit
         )
     else:
-        sp = solve_subproblem_bldp(data, m_idx, alpha, beta)
+        sp = solve_subproblem_bldp(data, m_idx, alpha, beta, rho=rho)
     return m_idx, sp
 
 
@@ -116,6 +118,16 @@ class ColumnGenerationSolver:
                 contrib += qty
         return contrib
 
+    def _get_column_wip_input(self, col: ScheduleColumn, i_idx: int) -> float:
+        """列在 deadline 前对物料 i 的进罐总量。"""
+        item_name = self.data.cured_items[i_idx]
+        dl = self.data.deadlines[i_idx]
+        total = 0.0
+        for (name, period), qty in col.x.items():
+            if name == item_name and period <= dl and qty > 0:
+                total += qty
+        return total
+
     def _create_empty_column(self, machine: str) -> ScheduleColumn:
         col = ScheduleColumn(
             machine=machine,
@@ -137,6 +149,7 @@ class ColumnGenerationSolver:
     def _build_pricing_jobs(
         self,
         alpha: list[list[float]],
+        rho: list[float],
         betas: list[float],
         *,
         use_gurobi_when_no_fixes: bool,
@@ -150,6 +163,7 @@ class ColumnGenerationSolver:
                     self.data,
                     m_idx,
                     alpha,
+                    rho,
                     betas[m_idx],
                     use_gurobi_when_no_fixes,
                     init_tl,
@@ -161,6 +175,7 @@ class ColumnGenerationSolver:
     def _price_machines_parallel(
         self,
         alpha: list[list[float]],
+        rho: list[float],
         betas: list[float],
         *,
         use_gurobi_when_no_fixes: bool,
@@ -169,6 +184,7 @@ class ColumnGenerationSolver:
     ) -> list[tuple[int, SubproblemResult]]:
         jobs = self._build_pricing_jobs(
             alpha,
+            rho,
             betas,
             use_gurobi_when_no_fixes=use_gurobi_when_no_fixes,
             init_time_limit=init_time_limit,
@@ -177,12 +193,14 @@ class ColumnGenerationSolver:
 
     def initialize_columns(self, executor: ProcessPoolExecutor) -> None:
         alpha = [[0.0] * len(self.data.periods) for _ in self.data.cured_items]
+        rho = [0.0] * len(self.data.cured_items)
         betas = [0.0] * len(self.data.machines)
         for machine in self.data.machines:
             self._add_column(machine, self._create_empty_column(machine))
 
         priced = self._price_machines_parallel(
             alpha,
+            rho,
             betas,
             use_gurobi_when_no_fixes=self.use_gurobi_init,
             executor=executor,
@@ -212,11 +230,13 @@ class ColumnGenerationSolver:
         # 简化：仅 cured_items（最终产品）
         s_plus = model.addVars(num_i, num_t, vtype=GRB.CONTINUOUS, lb=0, name="S_plus")
         s_minus = model.addVars(num_i, num_t, vtype=GRB.CONTINUOUS, lb=0, name="S_minus")
+        r_vars = model.addVars(num_i, vtype=GRB.CONTINUOUS, lb=0, name="R")
 
         q_vars: dict[str, list[gp.Var]] = {machine: [] for machine in data.machines}
         obj = gp.LinExpr()
         obj += gp.quicksum(data.h_c[i] * s_plus[i, t] for i in range(num_i) for t in range(num_t))
         obj += gp.quicksum(data.bc_j[i] * s_minus[i, t] for i in range(num_i) for t in range(num_t))
+        obj += gp.quicksum(data.sc_i[i] * r_vars[i] for i in range(num_i))
 
         for machine in data.machines:
             for col in self.columns[machine]:
@@ -252,6 +272,17 @@ class ColumnGenerationSolver:
         for machine in data.machines:
             choose_one[machine] = model.addConstr(gp.quicksum(q_vars[machine]) <= 1)
 
+        wip_balance: dict[int, gp.Constr] = {}
+        for i_idx in range(num_i):
+            wip_expr = gp.LinExpr()
+            wip_expr += r_vars[i_idx]
+            for machine in data.machines:
+                for col_idx, col in enumerate(self.columns[machine]):
+                    coeff = self._get_column_wip_input(col, i_idx)
+                    if coeff > 0:
+                        wip_expr += coeff * q_vars[machine][col_idx]
+            wip_balance[i_idx] = model.addConstr(wip_expr == data.w_i[i_idx], name=f"wip_balance_{i_idx}")
+
         distinct_taus = sorted(set(data.deadlines)) if hasattr(data, "deadlines") and data.deadlines else []
         for tau in distinct_taus:
             I = [ii for ii in range(num_i) if data.deadlines[ii] <= tau]
@@ -279,9 +310,11 @@ class ColumnGenerationSolver:
         self._artifacts = {
             "S_plus": s_plus,
             "S_minus": s_minus,
+            "R": r_vars,
             "Q": q_vars,
             "flow_items": flow_items,
             "choose_one": choose_one,
+            "wip_balance": wip_balance,
             "deadline_cuts": self.deadline_cuts,
         }
 
@@ -295,6 +328,7 @@ class ColumnGenerationSolver:
         q_vars = self._artifacts["Q"]
         flow_items = self._artifacts["flow_items"]
         choose_one = self._artifacts["choose_one"]
+        wip_balance = self._artifacts["wip_balance"]
 
         q_var = model.addVar(vtype=GRB.CONTINUOUS, lb=0, ub=1, name=f"Q_{machine}_{len(q_vars[machine])}")
         q_vars[machine].append(q_var)
@@ -313,6 +347,11 @@ class ColumnGenerationSolver:
                     model.chgCoeff(flow_items[(i_idx, t_idx)], q_var, float(qty))
 
         model.chgCoeff(choose_one[machine], q_var, 1.0)
+
+        for i_idx in range(len(data.cured_items)):
+            coeff = self._get_column_wip_input(col, i_idx)
+            if coeff > 0:
+                model.chgCoeff(wip_balance[i_idx], q_var, float(coeff))
 
         for tau, cut_info in self.deadline_cuts.items():
             contrib = self._get_column_contrib_to_tau(col, tau, cut_info.get("I", []))
@@ -368,6 +407,7 @@ class ColumnGenerationSolver:
                 self._prev_alpha = [row[:] for row in alpha]
 
                 betas = [self._artifacts["choose_one"][machine].Pi for machine in self.data.machines]
+                rhos = [self._artifacts["wip_balance"][i_idx].Pi for i_idx in range(len(self.data.cured_items))]
 
                 sum_rc = 0.0
                 lb_correction = 0.0
@@ -376,6 +416,7 @@ class ColumnGenerationSolver:
                 t_pricing = time.perf_counter()
                 priced = self._price_machines_parallel(
                     alpha,
+                    rhos,
                     betas,
                     use_gurobi_when_no_fixes=False,
                     executor=pricing_pool,
@@ -476,6 +517,17 @@ def solve_column_generation(
     cg = ColumnGenerationSolver(data, max_iterations=max_iterations, init_time_limit=init_time_limit)
     lb, rcs, columns = cg.run()
     runtime = time.perf_counter() - start
+
+    scrap_qty: dict[str, float] = {}
+    scrap_cost = None
+    if cg.converged and cg._artifacts is not None:
+        r_vars = cg._artifacts.get("R")
+        if r_vars is not None:
+            scrap_qty = {
+                data.cured_items[i]: r_vars[i].X for i in range(len(data.cured_items)) if r_vars[i].X > 1e-9
+            }
+            scrap_cost = sum(data.sc_i[i] * r_vars[i].X for i in range(len(data.cured_items)))
+
     return SolutionResult(
         method="column_generation",
         instance_name=data.raw.name,
@@ -499,5 +551,8 @@ def solve_column_generation(
             "instance_seed": data.raw.seed,
             "set_type": data.raw.set_type,
             "num_periods": data.raw.num_periods,
+            "scrap": scrap_qty,
+            "scrap_cost": scrap_cost,
+            "total_scrap_qty": sum(scrap_qty.values()) if scrap_qty else 0.0,
         },
     )

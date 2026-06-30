@@ -29,6 +29,8 @@ class InstanceData:
     end_item_ids: list[str] = field(default_factory=list)   # 已废弃（无装配）
     bom: dict[str, dict[str, int]] = field(default_factory=dict)  # 已废弃
     deadlines: dict[str, int] = field(default_factory=dict)   # 新：最晚加工时段（1-based）
+    wip_quantities: dict[str, int] = field(default_factory=dict)  # 初始 WIP 量 w_i
+    scrap_costs: dict[str, float] = field(default_factory=dict)   # 单位报废成本 sc_i
     seed: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -51,6 +53,8 @@ class InstanceData:
             "bom": self.bom,
             "demand": {k: {str(t): v for t, v in vals.items()} for k, vals in self.demand.items()},
             "deadlines": self.deadlines,
+            "wip_quantities": self.wip_quantities,
+            "scrap_costs": {k: float(v) for k, v in self.scrap_costs.items()},
             "seed": self.seed,
         }
         return d
@@ -86,6 +90,8 @@ class InstanceData:
             },
             demand=demand,
             deadlines={k: int(v) for k, v in data.get("deadlines", {}).items()},
+            wip_quantities={k: int(v) for k, v in data.get("wip_quantities", {}).items()},
+            scrap_costs={k: float(v) for k, v in data.get("scrap_costs", {}).items()},
             seed=data.get("seed"),
         )
 
@@ -121,7 +127,9 @@ class ProcessedInstance:
     items_by_config: list[list[int]]
     config_of_item: list[int]
     min_q: float
-    deadlines: list[int]      # 新：每个 cured item 的最晚加工时段（1-based）
+    deadlines: list[int]      # 每个 cured item 的最晚进罐时段（1-based）
+    w_i: list[int]            # 初始 WIP 量
+    sc_i: list[float]         # 单位报废成本
 
 
 @dataclass
