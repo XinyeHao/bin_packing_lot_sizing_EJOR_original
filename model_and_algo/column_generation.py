@@ -18,6 +18,7 @@ from configuration import (
     DEFAULT_CG_RC_TOLERANCE,
     CHECKER_TOL,
 )
+from model_and_algo.branch_utils import SetupFix, column_compatible, filter_columns, machine_fixed_y
 from model_and_algo.bldp import SubproblemResult, solve_subproblem_bldp, subproblem_to_column
 from model_and_algo.subproblem_gurobi import solve_subproblem_gurobi
 
@@ -34,6 +35,7 @@ def _execute_pricing_job(
         bool,
         float,
         float,
+        dict[SetupFix, int],
     ],
 ) -> tuple[int, SubproblemResult]:
     """单台机器定价（供进程池调用，须为模块级函数）。"""
@@ -46,10 +48,18 @@ def _execute_pricing_job(
         use_gurobi,
         init_time_limit,
         pricing_time_limit,
+        fixed_y,
     ) = job
-    if use_gurobi:
+    machine_fixes = machine_fixed_y(fixed_y, m_idx)
+    if use_gurobi or machine_fixes:
         sp = solve_subproblem_gurobi(
-            data, m_idx, alpha, beta, rho=rho, time_limit=init_time_limit
+            data,
+            m_idx,
+            alpha,
+            beta,
+            rho=rho,
+            time_limit=init_time_limit if not machine_fixes else pricing_time_limit,
+            fixed_y=machine_fixes or None,
         )
     else:
         sp = solve_subproblem_bldp(data, m_idx, alpha, beta, rho=rho)
@@ -69,6 +79,8 @@ class ColumnGenerationSolver:
         stabilization_theta: float = 0.0,
         pricing_workers: int = DEFAULT_CG_PRICING_WORKERS,
         pricing_time_limit: float = DEFAULT_CG_PRICING_TIME_LIMIT,
+        fixed_y: dict[SetupFix, int] | None = None,
+        inherited_columns: dict[str, list[ScheduleColumn]] | None = None,
     ) -> None:
         self.data = data
         self.max_iterations = max_iterations
@@ -78,6 +90,8 @@ class ColumnGenerationSolver:
         self.stabilization_theta = max(0.0, min(0.9, stabilization_theta))
         self.pricing_workers = pricing_workers
         self.pricing_time_limit = pricing_time_limit
+        self.fixed_y: dict[SetupFix, int] = dict(fixed_y or {})
+        self.inherited_columns = inherited_columns
         self.columns: dict[str, list[ScheduleColumn]] = {m: [] for m in data.machines}
         self._next_col_id = 0
         self._model: gp.Model | None = None
@@ -168,6 +182,7 @@ class ColumnGenerationSolver:
                     use_gurobi_when_no_fixes,
                     init_tl,
                     self.pricing_time_limit,
+                    self.fixed_y,
                 )
             )
         return jobs
@@ -191,25 +206,81 @@ class ColumnGenerationSolver:
         )
         return list(executor.map(_execute_pricing_job, jobs))
 
+    def _setup_branch_expr(
+        self,
+        q_vars: dict[str, list[gp.Var]],
+        machine: str,
+        u_idx: int,
+        t_idx: int,
+    ) -> gp.LinExpr:
+        data = self.data
+        u_name = data.configs[u_idx]
+        period = data.periods[t_idx]
+        expr = gp.LinExpr()
+        for col_idx, col in enumerate(self.columns[machine]):
+            if col.y.get((u_name, period), 0) > 0.5:
+                expr += q_vars[machine][col_idx]
+        return expr
+
+    def _add_branch_constraints(
+        self,
+        model: gp.Model,
+        q_vars: dict[str, list[gp.Var]],
+    ) -> list[tuple[gp.Constr, int, int, int, int]]:
+        """对 fixed_y 添加 implied Y 分支约束，返回 (constr, u, m, t, val)。"""
+        branch_rows: list[tuple[gp.Constr, int, int, int, int]] = []
+        data = self.data
+        for (u_idx, m_idx, t_idx), val in self.fixed_y.items():
+            machine = data.machines[m_idx]
+            expr = self._setup_branch_expr(q_vars, machine, u_idx, t_idx)
+            if val == 0:
+                constr = model.addConstr(expr == 0, name=f"branch_y0_{u_idx}_{m_idx}_{t_idx}")
+            else:
+                constr = model.addConstr(expr == 1, name=f"branch_y1_{u_idx}_{m_idx}_{t_idx}")
+            branch_rows.append((constr, u_idx, m_idx, t_idx, val))
+        return branch_rows
+
     def initialize_columns(self, executor: ProcessPoolExecutor) -> None:
-        alpha = [[0.0] * len(self.data.periods) for _ in self.data.cured_items]
-        rho = [0.0] * len(self.data.cured_items)
-        betas = [0.0] * len(self.data.machines)
-        for machine in self.data.machines:
-            self._add_column(machine, self._create_empty_column(machine))
+        data = self.data
+        if self.inherited_columns:
+            self.columns = filter_columns(self.inherited_columns, data, self.fixed_y)
+            max_id = max(
+                (col.column_id for cols in self.columns.values() for col in cols),
+                default=-1,
+            )
+            self._next_col_id = max_id + 1
+        else:
+            self.columns = {m: [] for m in data.machines}
+            self._next_col_id = 0
+
+        for m_idx, machine in enumerate(data.machines):
+            has_empty = any(not col.y and not col.x for col in self.columns.get(machine, []))
+            if not has_empty:
+                self._add_column(machine, self._create_empty_column(machine))
+
+        if self.inherited_columns:
+            return
+
+        alpha = [[0.0] * len(data.periods) for _ in data.cured_items]
+        rho = [0.0] * len(data.cured_items)
+        betas = [0.0] * len(data.machines)
+        for machine in data.machines:
+            if not any(not col.y and not col.x for col in self.columns[machine]):
+                self._add_column(machine, self._create_empty_column(machine))
 
         priced = self._price_machines_parallel(
             alpha,
             rho,
             betas,
-            use_gurobi_when_no_fixes=self.use_gurobi_init,
+            use_gurobi_when_no_fixes=self.use_gurobi_init or bool(self.fixed_y),
             executor=executor,
         )
         for m_idx, sp in priced:
-            machine = self.data.machines[m_idx]
-            col = subproblem_to_column(self.data, m_idx, self._next_col_id, sp)
+            machine = data.machines[m_idx]
+            col = subproblem_to_column(data, m_idx, self._next_col_id, sp)
             self._next_col_id += 1
-            self._add_column(machine, col)
+            if column_compatible(col, m_idx, data, self.fixed_y):
+                self._add_column(machine, col)
 
     def _init_master(self, relaxed: bool = True) -> None:
         """首次构建 LRMP；后续通过 _add_column_to_master 增量加列。"""
@@ -306,6 +377,8 @@ class ColumnGenerationSolver:
                     if contrib > 0:
                         model.chgCoeff(cut_info["constr"], qv, float(contrib))
 
+        branch_rows = self._add_branch_constraints(model, q_vars)
+
         self._model = model
         self._artifacts = {
             "S_plus": s_plus,
@@ -316,6 +389,7 @@ class ColumnGenerationSolver:
             "choose_one": choose_one,
             "wip_balance": wip_balance,
             "deadline_cuts": self.deadline_cuts,
+            "branch_rows": branch_rows,
         }
 
     def _add_column_to_master(self, machine: str, col: ScheduleColumn) -> None:
@@ -358,12 +432,22 @@ class ColumnGenerationSolver:
             if contrib > 0:
                 model.chgCoeff(cut_info["constr"], q_var, float(contrib))
 
+        u_name_lookup = data.configs
+        for constr, u_idx, m_idx, t_idx, _val in self._artifacts.get("branch_rows", []):
+            if data.machines[m_idx] != machine:
+                continue
+            u_name = u_name_lookup[u_idx]
+            period = data.periods[t_idx]
+            if col.y.get((u_name, period), 0) > 0.5:
+                model.chgCoeff(constr, q_var, 1.0)
+
         model.update()
 
     def run(self) -> tuple[float, list[float], dict[str, list[ScheduleColumn]]]:
         """列生成直至 LRMP 最优（所有机器 RC >= -rc_tolerance，无法再改进列）。"""
-        self.columns = {m: [] for m in self.data.machines}
-        self._next_col_id = 0
+        if not self.inherited_columns:
+            self.columns = {m: [] for m in self.data.machines}
+            self._next_col_id = 0
         self._reset_master()
         self.converged = False
         self.lrmp_obj = None
@@ -418,7 +502,7 @@ class ColumnGenerationSolver:
                     alpha,
                     rhos,
                     betas,
-                    use_gurobi_when_no_fixes=False,
+                    use_gurobi_when_no_fixes=bool(self.fixed_y),
                     executor=pricing_pool,
                 )
                 for m_idx, sp in priced:
@@ -429,7 +513,8 @@ class ColumnGenerationSolver:
                     if sp.reduced_cost < -self.rc_tolerance:
                         col = subproblem_to_column(self.data, m_idx, self._next_col_id, sp)
                         self._next_col_id += 1
-                        new_columns.append((machine, col))
+                        if column_compatible(col, m_idx, self.data, self.fixed_y):
+                            new_columns.append((machine, col))
                 pricing_sec = time.perf_counter() - t_pricing
 
                 t_add = time.perf_counter()

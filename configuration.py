@@ -76,11 +76,16 @@ DEFAULT_CG_INIT_TIME_CAP = 180.0
 DEFAULT_CG_PRICING_WORKERS = 0
 DEFAULT_CG_PRICING_TIME_LIMIT = 60.0
 
+# Branch-and-price
+DEFAULT_BP_MAX_NODES = 200
+DEFAULT_BP_NODE_IM_TIME_LIMIT = 300.0
+DEFAULT_BP_DEMO_MAX_NODES = 80
+
 CGFO_THRESHOLD_I = 0.0
 CGFO_THRESHOLD_II = 0.10
 
 DEFAULT_METHOD = "im_gurobi"
-SOLVER_METHODS = ("im_gurobi", "cg", "cgfo_i", "cgfo_ii")
+SOLVER_METHODS = ("im_gurobi", "cg", "cgfo_i", "cgfo_ii", "branch_and_price", "bp")
 EXPERIMENT_METHODS = ("lim", "cg", "im_gurobi", "cgfo_i", "cgfo_ii")
 SET_B_TEST_METHODS = ("lim", "cg", "im_gurobi", "cgfo_ii")
 

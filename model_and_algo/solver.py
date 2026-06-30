@@ -6,11 +6,14 @@ from typing import Any
 
 from common.data_models import ProcessedInstance, SolutionResult
 from configuration import (
+    DEFAULT_BP_MAX_NODES,
+    DEFAULT_BP_NODE_IM_TIME_LIMIT,
     DEFAULT_CG_INIT_TIME_CAP,
     DEFAULT_CG_MAX_ITERATIONS,
     DEFAULT_MIP_GAP,
     DEFAULT_TIME_LIMIT,
 )
+from model_and_algo.branch_and_price import solve_branch_and_price
 from model_and_algo.cgfo import solve_cgfo
 from model_and_algo.column_generation import solve_column_generation
 from model_and_algo.im_model import solve_im
@@ -49,5 +52,13 @@ def solve(
             fo_time_limit=time_limit,
             mip_gap=mip_gap,
             cg_max_iterations=cg_max_iterations,
+        )
+    if method in {"branch_and_price", "bp"}:
+        return solve_branch_and_price(
+            data,
+            max_nodes=kwargs.get("max_nodes", DEFAULT_BP_MAX_NODES),
+            cg_max_iterations=cg_max_iterations,
+            im_time_limit=min(time_limit, DEFAULT_BP_NODE_IM_TIME_LIMIT),
+            mip_gap=mip_gap,
         )
     raise ValueError(f"Unknown method: {method}")

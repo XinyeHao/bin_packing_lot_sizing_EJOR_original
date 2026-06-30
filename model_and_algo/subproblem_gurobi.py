@@ -18,8 +18,9 @@ def solve_subproblem_gurobi(
     beta: float,
     rho: list[float] | None = None,
     time_limit: float = DEFAULT_CG_INIT_TIME_LIMIT,
+    fixed_y: dict[tuple[int, int], int] | None = None,
 ) -> SubproblemResult:
-    """用 Gurobi 精确求解单台热压罐子问题（用于初始列）。"""
+    """用 Gurobi 精确求解单台热压罐子问题（用于初始列 / 分支定价）。"""
     model = gp.Model("subproblem")
     model.Params.OutputFlag = 0
     model.Params.TimeLimit = time_limit
@@ -74,6 +75,11 @@ def solve_subproblem_gurobi(
             for t_idx in range(num_t):
                 if (t_idx + 1) > dl:
                     model.addConstr(X[i_idx, t_idx] == 0, name=f"dl_{i_idx}_{t_idx}")
+
+    if fixed_y:
+        for (u_idx, t_idx), val in fixed_y.items():
+            Y[u_idx, t_idx].lb = val
+            Y[u_idx, t_idx].ub = val
 
     model.optimize()
 
