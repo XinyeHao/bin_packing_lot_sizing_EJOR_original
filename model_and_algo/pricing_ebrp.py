@@ -88,13 +88,15 @@ def _build_subset_cache(
     float_capacity: float,
     item_volumes: list[float],
     lt_at_t: dict[tuple[int, int], int],
-) -> list[list[frozenset[int]]]:
+    global_to_local: dict[int, int],
+) -> list[list[tuple[frozenset[int], int]]]:
     """预计算每 (u, t, s) 的全部容量可行物料子集。
 
     每个子集恰好被生成一次：对候选池全体运行一次 0/1 背包 DP，
     然后只保留至少包含一个 lt_it == s 物料的子集。
+    item_mask 使用机器本地索引（global_to_local 映射）。
     """
-    cache: list[list[frozenset[int]]] = []
+    cache: list[list[tuple[frozenset[int], int]]] = []
     for spec in pool_specs:
         n = len(spec.pool)
         # 背包 DP：dp[c] = 容量恰好为 c 的全部子集
@@ -115,8 +117,8 @@ def _build_subset_cache(
                 for prev in dp[cap - w]:
                     dp[cap].add(prev | frozenset({item}))
 
-        # 收集全部子集，浮点校验 + 跨期过滤
-        subsets: list[frozenset[int]] = []
+        # 收集全部子集 (subset, item_mask)，浮点校验 + 跨期过滤
+        subsets: list[tuple[frozenset[int], int]] = []
         tol = 1e-9
         for cap in range(int_capacity + 1):
             for subset in dp[cap]:
@@ -128,7 +130,12 @@ def _build_subset_cache(
                     lt_at_t.get((i, spec.t_idx), 0) == spec.span
                     for i in subset
                 ):
-                    subsets.append(subset)
+                    mask = 0
+                    for i in subset:
+                        loc = global_to_local.get(i)
+                        if loc is not None:
+                            mask |= 1 << loc
+                    subsets.append((subset, mask))
 
         cache.append(subsets)
     return cache
@@ -151,7 +158,7 @@ class EBRPContext:
     global_to_local: dict[int, int] = field(default_factory=dict)
     pool_specs: list[_PoolSpec] = field(default_factory=list)
     event_times: list[int] = field(default_factory=list)
-    _subset_cache: list[list[frozenset[int]]] = field(default_factory=list)
+    _subset_cache: list[list[tuple[frozenset[int], int]]] = field(default_factory=list)
     _float_capacity: float = 0.0
     _item_volumes: list[float] = field(default_factory=list)
     _lt_at_t: dict[tuple[int, int], int] = field(default_factory=dict)
@@ -230,6 +237,7 @@ class EBRPContext:
             ctx._float_capacity,
             ctx._item_volumes,
             lt_at_t,
+            g2l,
         )
         ctx.event_times = [t for t, flag in enumerate(has_batch) if flag]
         return ctx
@@ -249,32 +257,36 @@ class EBRPContext:
         将当前对偶 (α, ρ) 代入缓存子集，计算 δ(B)，滤除 δ≥0，
         经 Pareto 支配剪枝后产出批目录。
         """
+        # 预计算每个物料在每时刻的对偶贡献 dual_contrib[i][t]
+        # dual_contrib[i][t] = rho[i] + alpha[i][t + lt[i][t] - 1]
+        num_i = len(data.cured_items)
+        dual_contrib: list[list[float]] = [[0.0] * self.num_t for _ in range(num_i)]
+        for t_idx in range(self.num_t):
+            for spec in self.pool_specs:
+                if spec.t_idx != t_idx:
+                    continue
+                for i in spec.pool:
+                    lt_i = data.lt_it[i][t_idx]
+                    comp_t = t_idx + lt_i - 1
+                    if alpha_flat is not None and num_t is not None:
+                        dual_contrib[i][t_idx] = rho[i] + (alpha_flat[i * num_t + comp_t] if 0 <= comp_t < num_t else 0.0)
+                    else:
+                        dual_contrib[i][t_idx] = rho[i] + (alpha[i][comp_t] if 0 <= comp_t < self.num_t else 0.0)
+
         catalog: list[list[list[Batch]]] = [
             [[] for _ in range(self.num_t)] for _ in range(self.num_u)
         ]
-
-        def _dual_sum(item: int, start_t: int, comp_t: int) -> float:
-            if comp_t < 0 or comp_t >= self.num_t:
-                return rho[item]
-            if alpha_flat is not None and num_t is not None:
-                return rho[item] + alpha_flat[item * num_t + comp_t]
-            return rho[item] + alpha[item][comp_t]
 
         for spec_idx, spec in enumerate(self.pool_specs):
             if deadline is not None and time.perf_counter() >= deadline:
                 break
             u_idx, t_idx, span = spec.u_idx, spec.t_idx, spec.span
+            p_cum_u = self.p_cum[u_idx]
+            dc_t = dual_contrib
 
-            for subset in self._subset_cache[spec_idx]:
-                comp_times = [
-                    t_idx + data.lt_it[i][t_idx] - 1 for i in subset
-                ]
-                dual_sum_val = sum(
-                    _dual_sum(i, t_idx, ct)
-                    for i, ct in zip(subset, comp_times)
-                )
-                delta = self.p_cum[u_idx] - dual_sum_val
-                # 滤除 δ ≥ 0 的批（空闲成本为 0，不可能优于空闲）
+            for subset, item_mask in self._subset_cache[spec_idx]:
+                dual_sum_val = sum(dc_t[i][t_idx] for i in subset)
+                delta = p_cum_u - dual_sum_val
                 if delta >= 0 - CHECKER_TOL["pricing_dp"]:
                     continue
 
@@ -285,7 +297,7 @@ class EBRPContext:
                         span=span,
                         items=subset,
                         delta=delta,
-                        item_mask=_item_mask_global(subset, self.global_to_local),
+                        item_mask=item_mask,
                     )
                 )
 
@@ -371,13 +383,14 @@ def _solve_routing(
     start_t: int = 0,
     start_mask: int = 0,
 ) -> tuple[float, dict[tuple[int, int], _MemoEntry]]:
-    """记忆化 DP 路由（精确，不做任何前瞻剪枝）。
+    """记忆化 DP 路由（递归，精确）。
 
     状态：(t, used_mask)，t 为当前时刻，used_mask 为已用物料位掩码。
     """
-    memo: dict[tuple[int, int], _MemoEntry] = {}
-    solve_start = time.perf_counter()
-    last_progress = solve_start
+    # 预排序：每时刻的批按 delta 升序（最负优先），尽早收紧 best 便于递归分支剪枝
+    for t in range(num_t):
+        if batches_by_t[t]:
+            batches_by_t[t].sort(key=lambda b: b.delta)
 
     # 预计算 next_event[t] = 下一个有批次的时刻（>= t）
     next_event = [num_t] * (num_t + 1)
@@ -387,6 +400,34 @@ def _solve_routing(
         if batches_by_t[t]:
             nxt = t
     next_event[num_t] = num_t
+
+    # 打包键：单整数替代 tuple，减少 Python 分配与哈希开销
+    # shift 必须 ≥ max_item_index，否则 (t, mask) 会与 (t-1, mask + 2^shift) 碰撞
+    # 保守取 64 位，足以覆盖所有实测算例
+    shift = 64
+    def _pack(t_idx: int, mask: int) -> int:
+        return (t_idx << shift) | mask
+
+    memo: dict[int, _MemoEntry] = {}
+    solve_start = time.perf_counter()
+    last_progress = solve_start
+    tol = CHECKER_TOL["pricing_dp"]
+    _next_event = next_event  # local binding
+    _batches_by_t = batches_by_t
+    _num_t = num_t
+    _deadline = deadline
+
+    # 预计算乐观下界：lb_sum[t] = sum_{t'>=t} min(0, min_delta_at_t')
+    # 忽略物料冲突，是真实未来成本的下界（更负 = 更乐观）
+    # 注意：若某时刻所有批的 delta >= 0，最优选择是空闲（成本 0）
+    lb_sum = [0.0] * (_num_t + 1)
+    for t in range(_num_t - 1, -1, -1):
+        batches = _batches_by_t[t]
+        best_at_t = 0.0
+        if batches and batches[0].delta < 0.0:
+            best_at_t = batches[0].delta  # batches 已按 delta 升序排列
+        lb_sum[t] = best_at_t + lb_sum[t + 1]
+    lb_sum[_num_t] = 0.0
 
     _node_counter = [0]
 
@@ -407,7 +448,7 @@ def _solve_routing(
         )
 
     def timed_out() -> bool:
-        if deadline is not None and time.perf_counter() >= deadline:
+        if _deadline is not None and time.perf_counter() >= _deadline:
             st.timed_out = True
             st.exact = False
             return True
@@ -417,29 +458,33 @@ def _solve_routing(
         _node_counter[0] += 1
         if _node_counter[0] & 63 == 0 and timed_out():
             return math.inf
-        if t_idx >= num_t:
+        if t_idx >= _num_t:
             return 0.0
 
-        key = (t_idx, used_mask)
-        if key in memo:
+        key = _pack(t_idx, used_mask)
+        cached = memo.get(key)
+        if cached is not None:
             st.memo_hits += 1
-            return memo[key].cost
+            return cached.cost
 
         st.memo_misses += 1
         st.nodes_expanded += 1
         _progress_report()
 
-        nxt = next_event[t_idx]
+        nxt = _next_event[t_idx]
         idle_best = solve(nxt, used_mask)
         best = idle_best
         entry = _MemoEntry(best, "idle", next_t=nxt)
 
-        tol = CHECKER_TOL["pricing_dp"]
-        for b in batches_by_t[t_idx]:
+        for b in _batches_by_t[t_idx]:
             if b.item_mask & used_mask:
                 continue
             et = t_idx + b.span
-            if et > num_t:
+            if et > _num_t:
+                continue
+
+            # 乐观下界剪枝：即使未来没有任何冲突，也无法胜过 best
+            if b.delta + lb_sum[et] >= best - tol:
                 continue
 
             cand = b.delta + solve(et, used_mask | b.item_mask)
@@ -452,7 +497,15 @@ def _solve_routing(
 
     batch_cost = solve(start_t, start_mask)
     _progress_report(force=True)
-    return batch_cost, memo
+
+    # 将打包键还原为 tuple 键，供 _decode_plan 使用
+    unpacked_memo: dict[tuple[int, int], _MemoEntry] = {}
+    for packed_key, val in memo.items():
+        t_val = packed_key >> shift
+        m_val = packed_key & ((1 << shift) - 1)
+        unpacked_memo[(t_val, m_val)] = val
+
+    return batch_cost, unpacked_memo
 
 
 # ──────────────────────────────────────────────────────────────────────
