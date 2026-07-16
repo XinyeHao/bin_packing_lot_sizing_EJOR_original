@@ -1,0 +1,636 @@
+"""EBRP：精确定价子问题求解（批目录 + 记忆化 DP 路由）。
+
+四阶段：
+  1. 静态子集枚举 — 每机首轮，穷举容量可行物料子集（与对偶无关）
+  2. 批目录生成   — 每轮 CG，计算 δ + Pareto 支配剪枝
+  3. DP 路由      — 记忆化 DP，不做前瞻剪枝
+  4. 解码         — 从 memo 回溯还原 X/Y 赋值
+"""
+
+from __future__ import annotations
+
+import math
+import sys
+import time
+from dataclasses import dataclass, field
+from typing import Literal
+
+from common.data_models import ProcessedInstance
+from configuration import CHECKER_TOL, DEFAULT_PROGRESS_INTERVAL_SEC
+from model_and_algo.subproblem_common import SubproblemResult, scale_lengths
+from model_and_algo.im_model import _item_start_feasible
+
+ActionKind = Literal["end", "idle", "batch"]
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 数据结构
+# ──────────────────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class Batch:
+    u_idx: int
+    t_idx: int
+    span: int
+    items: frozenset[int]
+    delta: float
+    item_mask: int = 0
+
+
+@dataclass
+class EBRPStats:
+    memo_hits: int = 0
+    memo_misses: int = 0
+    nodes_expanded: int = 0
+    pareto_prunes: int = 0
+    bound_prunes: int = 0
+    timed_out: bool = False
+    exact: bool = True
+
+
+@dataclass
+class _MemoEntry:
+    cost: float
+    kind: ActionKind
+    next_t: int = 0
+    batch: Batch | None = None
+
+
+@dataclass
+class _PoolSpec:
+    u_idx: int
+    t_idx: int
+    span: int
+    pool: list[int]            # 全局物料索引
+    weights: list[int]         # 缩放后的整数体积
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 工具函数
+# ──────────────────────────────────────────────────────────────────────
+
+def _item_mask_global(items: frozenset[int] | list[int], g2l: dict[int, int]) -> int:
+    mask = 0
+    for i in items:
+        loc = g2l.get(i)
+        if loc is not None:
+            mask |= 1 << loc
+    return mask
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 第一阶段：静态子集枚举
+# ──────────────────────────────────────────────────────────────────────
+
+def _build_subset_cache(
+    pool_specs: list[_PoolSpec],
+    int_capacity: int,
+    float_capacity: float,
+    item_volumes: list[float],
+    lt_at_t: dict[tuple[int, int], int],
+) -> list[list[frozenset[int]]]:
+    """预计算每 (u, t, s) 的全部容量可行物料子集。
+
+    每个子集恰好被生成一次：对候选池全体运行一次 0/1 背包 DP，
+    然后只保留至少包含一个 lt_it == s 物料的子集。
+    """
+    cache: list[list[frozenset[int]]] = []
+    for spec in pool_specs:
+        n = len(spec.pool)
+        # 背包 DP：dp[c] = 容量恰好为 c 的全部子集
+        dp: list[set[frozenset[int]]] = [set() for _ in range(int_capacity + 1)]
+        dp[0].add(frozenset())
+
+        for loc in range(n):
+            w = spec.weights[loc]
+            if w > int_capacity:
+                continue
+            item = spec.pool[loc]
+            # 浮点预筛：单件体积超容则跳过
+            if item_volumes[item] > float_capacity + 1e-9:
+                continue
+            for cap in range(int_capacity, w - 1, -1):
+                if not dp[cap - w]:
+                    continue
+                for prev in dp[cap - w]:
+                    dp[cap].add(prev | frozenset({item}))
+
+        # 收集全部子集，浮点校验 + 跨期过滤
+        subsets: list[frozenset[int]] = []
+        tol = 1e-9
+        for cap in range(int_capacity + 1):
+            for subset in dp[cap]:
+                # 浮点容量校验
+                if sum(item_volumes[i] for i in subset) > float_capacity + tol:
+                    continue
+                # 必须包含至少一个跨期 == span 的物料
+                if any(
+                    lt_at_t.get((i, spec.t_idx), 0) == spec.span
+                    for i in subset
+                ):
+                    subsets.append(subset)
+
+        cache.append(subsets)
+    return cache
+
+
+# ──────────────────────────────────────────────────────────────────────
+# EBRPContext
+# ──────────────────────────────────────────────────────────────────────
+
+@dataclass
+class EBRPContext:
+    """单机 EBRP 静态结构缓存：对偶变化时仅重算批目录 delta。"""
+
+    machine_idx: int
+    num_t: int
+    num_u: int
+    capacity: int
+    p_cum: list[float]
+    local_items: list[int] = field(default_factory=list)
+    global_to_local: dict[int, int] = field(default_factory=dict)
+    pool_specs: list[_PoolSpec] = field(default_factory=list)
+    event_times: list[int] = field(default_factory=list)
+    _subset_cache: list[list[frozenset[int]]] = field(default_factory=list)
+    _float_capacity: float = 0.0
+    _item_volumes: list[float] = field(default_factory=list)
+    _lt_at_t: dict[tuple[int, int], int] = field(default_factory=dict)
+
+    @classmethod
+    def build(cls, data: ProcessedInstance, machine_idx: int) -> EBRPContext:
+        num_t = len(data.periods)
+        num_u = len(data.configs)
+        t_max = data.periods[-1]
+        q = data.q_m[machine_idx]
+        capacity, _ = scale_lengths([1.0], q)
+        local_items = list(data.items_by_machine[machine_idx])
+        g2l = {g: i for i, g in enumerate(local_items)}
+        lt_at_t: dict[tuple[int, int], int] = {}
+
+        ctx = cls(
+            machine_idx=machine_idx,
+            num_t=num_t,
+            num_u=num_u,
+            capacity=capacity,
+            p_cum=data.p_cum[machine_idx],
+            local_items=local_items,
+            global_to_local=g2l,
+            _float_capacity=data.q_m[machine_idx],
+            _item_volumes=list(data.v_i),
+            _lt_at_t=lt_at_t,
+        )
+
+        has_batch = [False] * num_t
+        pool_specs: list[_PoolSpec] = []
+
+        for u_idx in range(num_u):
+            for t_idx in range(num_t):
+                # 收集该 (u, t) 的可行物料
+                eligible: list[int] = []
+                levels: set[int] = set()
+                for i_idx in data.items_by_config[u_idx]:
+                    if data.b_im[i_idx][machine_idx] == 0:
+                        continue
+                    if not _item_start_feasible(data, i_idx, t_idx, t_max):
+                        continue
+                    eligible.append(i_idx)
+                    lt = data.lt_it[i_idx][t_idx]
+                    levels.add(lt)
+                    lt_at_t[(i_idx, t_idx)] = lt
+
+                if not eligible:
+                    continue
+
+                # 按跨期 s 升序构造候选池
+                for span in sorted(levels):
+                    if t_idx + span - 1 >= num_t:
+                        continue
+                    pool: list[int] = []
+                    for i_idx in eligible:
+                        if data.lt_it[i_idx][t_idx] <= span:
+                            pool.append(i_idx)
+                    if not pool:
+                        continue
+                    # 至少存在一个物料跨期 == span
+                    if not any(data.lt_it[i][t_idx] == span for i in pool):
+                        continue
+
+                    _, weights_pool = scale_lengths(
+                        [data.v_i[i] for i in pool], q
+                    )
+                    pool_specs.append(
+                        _PoolSpec(u_idx, t_idx, span, pool, weights_pool)
+                    )
+                    has_batch[t_idx] = True
+
+        ctx.pool_specs = pool_specs
+        ctx._subset_cache = _build_subset_cache(
+            pool_specs,
+            capacity,
+            ctx._float_capacity,
+            ctx._item_volumes,
+            lt_at_t,
+        )
+        ctx.event_times = [t for t, flag in enumerate(has_batch) if flag]
+        return ctx
+
+    def build_catalog(
+        self,
+        data: ProcessedInstance,
+        alpha: list[list[float]],
+        rho: list[float],
+        *,
+        alpha_flat=None,
+        num_t: int | None = None,
+        deadline: float | None = None,
+    ) -> list[list[list[Batch]]]:
+        """第二阶段：批目录生成。
+
+        将当前对偶 (α, ρ) 代入缓存子集，计算 δ(B)，滤除 δ≥0，
+        经 Pareto 支配剪枝后产出批目录。
+        """
+        catalog: list[list[list[Batch]]] = [
+            [[] for _ in range(self.num_t)] for _ in range(self.num_u)
+        ]
+
+        def _dual_sum(item: int, start_t: int, comp_t: int) -> float:
+            if comp_t < 0 or comp_t >= self.num_t:
+                return rho[item]
+            if alpha_flat is not None and num_t is not None:
+                return rho[item] + alpha_flat[item * num_t + comp_t]
+            return rho[item] + alpha[item][comp_t]
+
+        for spec_idx, spec in enumerate(self.pool_specs):
+            if deadline is not None and time.perf_counter() >= deadline:
+                break
+            u_idx, t_idx, span = spec.u_idx, spec.t_idx, spec.span
+
+            for subset in self._subset_cache[spec_idx]:
+                comp_times = [
+                    t_idx + data.lt_it[i][t_idx] - 1 for i in subset
+                ]
+                dual_sum_val = sum(
+                    _dual_sum(i, t_idx, ct)
+                    for i, ct in zip(subset, comp_times)
+                )
+                delta = self.p_cum[u_idx] - dual_sum_val
+                # 滤除 δ ≥ 0 的批（空闲成本为 0，不可能优于空闲）
+                if delta >= 0 - CHECKER_TOL["pricing_dp"]:
+                    continue
+
+                catalog[u_idx][t_idx].append(
+                    Batch(
+                        u_idx=u_idx,
+                        t_idx=t_idx,
+                        span=span,
+                        items=subset,
+                        delta=delta,
+                        item_mask=_item_mask_global(subset, self.global_to_local),
+                    )
+                )
+
+        # Pareto 支配剪枝（per (u,t)）
+        for u_idx in range(self.num_u):
+            for t_idx in range(self.num_t):
+                catalog[u_idx][t_idx] = _prune_batch_cell(catalog[u_idx][t_idx])
+
+        return catalog
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Pareto 支配剪枝
+# ──────────────────────────────────────────────────────────────────────
+
+def _prune_batch_cell(batches: list[Batch]) -> list[Batch]:
+    """Pareto 支配剪枝：若 A.items ⊆ B.items 且 A.δ ≤ B.δ 且 A.span ≤ B.span，
+    则 B 被 A 支配（用更少物料达相同或更低成本、占相同或更短时段，永不劣势）。
+    """
+    if not batches:
+        return batches
+    tol = CHECKER_TOL["pricing_dp"]
+
+    # 按 (span, |items|, delta) 升序，优先处理更小跨期 + 更少物料的批
+    sorted_batches = sorted(batches, key=lambda b: (b.span, len(b.items), b.delta))
+    kept: list[Batch] = []
+    for b in sorted_batches:
+        dominated = False
+        for o in kept:
+            if o.span <= b.span and o.items <= b.items and o.delta <= b.delta + tol:
+                dominated = True
+                break
+        if not dominated:
+            kept.append(b)
+    return kept
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 第三阶段：DP 路由
+# ──────────────────────────────────────────────────────────────────────
+
+def _index_batches_by_t(
+    catalog: list[list[list[Batch]]],
+    num_u: int,
+    num_t: int,
+    forbidden: set[tuple[int, int]],
+) -> list[list[Batch]]:
+    """将三维 catalog[u][t] 展平为按 t 索引的批列表。"""
+    by_t: list[list[Batch]] = [[] for _ in range(num_t)]
+    for u_idx in range(num_u):
+        for t_idx in range(num_t):
+            if (u_idx, t_idx) in forbidden:
+                continue
+            by_t[t_idx].extend(catalog[u_idx][t_idx])
+    for t_idx in range(num_t):
+        if not by_t[t_idx]:
+            continue
+        by_t[t_idx] = _prune_batch_cell(by_t[t_idx])
+    return by_t
+
+
+def _next_event_t(
+    batches_by_t: list[list[Batch]],
+    t: int,
+    num_t: int,
+) -> int:
+    """返回 >= t 的下一个有批次的时刻。"""
+    while t < num_t:
+        if batches_by_t[t]:
+            return t
+        t += 1
+    return num_t
+
+
+def _solve_routing(
+    batches_by_t: list[list[Batch]],
+    num_t: int,
+    *,
+    deadline: float | None,
+    st: EBRPStats,
+    progress_interval_sec: float,
+    machine: str,
+    start_t: int = 0,
+    start_mask: int = 0,
+) -> tuple[float, dict[tuple[int, int], _MemoEntry]]:
+    """记忆化 DP 路由（精确，不做任何前瞻剪枝）。
+
+    状态：(t, used_mask)，t 为当前时刻，used_mask 为已用物料位掩码。
+    """
+    memo: dict[tuple[int, int], _MemoEntry] = {}
+    solve_start = time.perf_counter()
+    last_progress = solve_start
+
+    # 预计算 next_event[t] = 下一个有批次的时刻（>= t）
+    next_event = [num_t] * (num_t + 1)
+    nxt = num_t
+    for t in range(num_t - 1, -1, -1):
+        next_event[t] = nxt
+        if batches_by_t[t]:
+            nxt = t
+    next_event[num_t] = num_t
+
+    _node_counter = [0]
+
+    def _progress_report(force: bool = False) -> None:
+        nonlocal last_progress
+        if progress_interval_sec <= 0:
+            return
+        now = time.perf_counter()
+        if not force and now - last_progress < progress_interval_sec:
+            return
+        last_progress = now
+        elapsed = now - solve_start
+        print(
+            f"[EBRP {machine}] +{elapsed:6.0f}s  "
+            f"nnodes={st.nodes_expanded}  memo={len(memo)}  exact={st.exact}",
+            flush=True,
+            file=sys.stderr,
+        )
+
+    def timed_out() -> bool:
+        if deadline is not None and time.perf_counter() >= deadline:
+            st.timed_out = True
+            st.exact = False
+            return True
+        return False
+
+    def solve(t_idx: int, used_mask: int) -> float:
+        _node_counter[0] += 1
+        if _node_counter[0] & 63 == 0 and timed_out():
+            return math.inf
+        if t_idx >= num_t:
+            return 0.0
+
+        key = (t_idx, used_mask)
+        if key in memo:
+            st.memo_hits += 1
+            return memo[key].cost
+
+        st.memo_misses += 1
+        st.nodes_expanded += 1
+        _progress_report()
+
+        nxt = next_event[t_idx]
+        idle_best = solve(nxt, used_mask)
+        best = idle_best
+        entry = _MemoEntry(best, "idle", next_t=nxt)
+
+        tol = CHECKER_TOL["pricing_dp"]
+        for b in batches_by_t[t_idx]:
+            if b.item_mask & used_mask:
+                continue
+            et = t_idx + b.span
+            if et > num_t:
+                continue
+
+            cand = b.delta + solve(et, used_mask | b.item_mask)
+            if cand < best - tol:
+                best = cand
+                entry = _MemoEntry(best, "batch", next_t=et, batch=b)
+
+        memo[key] = entry
+        return best
+
+    batch_cost = solve(start_t, start_mask)
+    _progress_report(force=True)
+    return batch_cost, memo
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 第四阶段：解码
+# ──────────────────────────────────────────────────────────────────────
+
+def _decode_plan(
+    memo: dict[tuple[int, int], _MemoEntry],
+    t_idx: int,
+    used_mask: int,
+    num_t: int,
+    p_cum: list[float],
+) -> tuple[dict[tuple[int, int], int], dict[tuple[int, int], int], float]:
+    x: dict[tuple[int, int], int] = {}
+    y: dict[tuple[int, int], int] = {}
+    production_cost = 0.0
+
+    t = t_idx
+    used = used_mask
+    while t < num_t:
+        key = (t, used)
+        if key not in memo:
+            break
+        entry = memo[key]
+        if entry.kind == "end":
+            break
+        if entry.kind == "idle":
+            t = entry.next_t
+            continue
+        batch = entry.batch
+        if batch is None:
+            break
+        y[(batch.u_idx, batch.t_idx)] = 1
+        production_cost += p_cum[batch.u_idx]
+        for i_idx in batch.items:
+            x[(i_idx, batch.t_idx)] = 1
+        used |= batch.item_mask
+        t = entry.next_t
+
+    return x, y, production_cost
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 主入口
+# ──────────────────────────────────────────────────────────────────────
+
+def build_ebrp_contexts(data: ProcessedInstance) -> list[EBRPContext]:
+    return [EBRPContext.build(data, m_idx) for m_idx in range(len(data.machines))]
+
+
+def solve_subproblem_ebrp(
+    data: ProcessedInstance,
+    machine_idx: int,
+    alpha: list[list[float]],
+    beta: float,
+    rho: list[float] | None = None,
+    catalog: list[list[list[Batch]]] | None = None,
+    fixed_y: dict[tuple[int, int], int] | None = None,
+    time_limit: float | None = None,
+    max_nodes: int | None = None,
+    stats: EBRPStats | None = None,
+    progress_interval_sec: float = DEFAULT_PROGRESS_INTERVAL_SEC,
+    ctx: EBRPContext | None = None,
+    alpha_flat=None,
+    num_t_for_flat: int | None = None,
+    skip_cross_check: bool = False,
+) -> SubproblemResult:
+    num_t = len(data.periods)
+    num_i = len(data.cured_items)
+    num_u = len(data.configs)
+    p_cum = data.p_cum[machine_idx]
+    rho_val = rho or [0.0] * num_i
+
+    st = stats or EBRPStats()
+    solve_start = time.perf_counter()
+    deadline = solve_start + time_limit if time_limit else None
+    machine = data.machines[machine_idx]
+
+    if ctx is None:
+        ctx = EBRPContext.build(data, machine_idx)
+
+    if catalog is None:
+        catalog = ctx.build_catalog(
+            data,
+            alpha,
+            rho_val,
+            alpha_flat=alpha_flat,
+            num_t=num_t_for_flat or num_t,
+            deadline=deadline,
+        )
+        if deadline is not None and time.perf_counter() >= deadline:
+            st.timed_out = True
+            st.exact = False
+            return SubproblemResult(
+                reduced_cost=float("inf"),
+                x={},
+                y={},
+                production_cost=0.0,
+            )
+
+    # 处理固定变量（来自分枝定界）
+    forbidden: set[tuple[int, int]] = set()
+    if fixed_y:
+        for (u, t), val in fixed_y.items():
+            if val == 0:
+                forbidden.add((u, t))
+            elif val == 1:
+                # 固定该 (u,t) 被选中时，禁止同 t 其他配置
+                for other_u in range(num_u):
+                    if other_u != u:
+                        forbidden.add((other_u, t))
+
+    batches_by_t = _index_batches_by_t(catalog, num_u, num_t, forbidden)
+
+    if progress_interval_sec > 0:
+        total_batches = sum(len(bt) for bt in batches_by_t)
+        print(
+            f"[EBRP {machine}] search start  pools={len(ctx.pool_specs)}  "
+            f"batches={total_batches}  events={len(ctx.event_times)}",
+            flush=True,
+            file=sys.stderr,
+        )
+
+    batch_cost, memo = _solve_routing(
+        batches_by_t,
+        num_t,
+        deadline=deadline,
+        st=st,
+        progress_interval_sec=progress_interval_sec,
+        machine=machine,
+    )
+    if st.timed_out and not math.isfinite(batch_cost):
+        batch_cost = math.inf
+
+    reduced_cost = batch_cost - beta if math.isfinite(batch_cost) else float("inf")
+    x, y, production_cost = _decode_plan(memo, 0, 0, num_t, p_cum)
+
+    # Gurobi 交叉验证（仅在 EBRP 认为无负 RC 列时，兜底防止实现瑕疵）
+    if not skip_cross_check and reduced_cost > -1e-3 and not fixed_y and not st.timed_out:
+        try:
+            from model_and_algo.pricing_im_gurobi import solve_subproblem_im_gurobi
+
+            if alpha_flat is not None and num_t_for_flat is not None:
+                gb_alpha = [[0.0] * num_t_for_flat for _ in range(num_i)]
+                for i_idx in range(num_i):
+                    base = i_idx * num_t_for_flat
+                    row = gb_alpha[i_idx]
+                    for t_idx in range(num_t_for_flat):
+                        row[t_idx] = alpha_flat[base + t_idx]
+            else:
+                gb_alpha = alpha if alpha else [[]]
+
+            sp_gb = solve_subproblem_im_gurobi(
+                data, machine_idx, gb_alpha, beta, rho_val,
+                time_limit=5.0, progress_interval_sec=0.0,
+            )
+            if sp_gb.reduced_cost < reduced_cost - CHECKER_TOL["pricing_dp"]:
+                if progress_interval_sec > 0:
+                    print(
+                        f"[EBRP {machine}] Gurobi found better "
+                        f"RC={sp_gb.reduced_cost:.4f} vs EBRP={reduced_cost:.4f}",
+                        flush=True, file=sys.stderr,
+                    )
+                return SubproblemResult(
+                    reduced_cost=sp_gb.reduced_cost,
+                    x=sp_gb.x,
+                    y=sp_gb.y,
+                    production_cost=sp_gb.production_cost,
+                )
+        except Exception as exc:
+            print(
+                f"[EBRP {machine}] Gurobi cross-check failed: {exc}",
+                flush=True, file=sys.stderr,
+            )
+
+    return SubproblemResult(
+        reduced_cost=reduced_cost,
+        x=x,
+        y=y,
+        production_cost=production_cost,
+    )

@@ -8,15 +8,15 @@ from checkers.utils import almost_equal, nested_get
 from configuration import CHECKER_TOL
 
 
-def recompute_costs(data: ProcessedInstance, result: SolutionResult) -> tuple[float, float, float, float]:
+def recompute_costs(data: ProcessedInstance, result: SolutionResult) -> tuple[float, float, float, float, float]:
     holding = sum(
-        data.h_c[item_idx] * nested_get(result.inventory, item, t)
-        for item_idx, item in enumerate(data.all_items)
+        data.h_c[i_idx] * nested_get(result.inventory, data.cured_items[i_idx], t)
+        for i_idx in range(len(data.cured_items))
         for t in data.periods
     )
     backorder = sum(
-        data.bc_j[j_idx] * nested_get(result.backorder, data.end_items[j_idx], t)
-        for j_idx in range(len(data.end_items))
+        data.bc_j[i_idx] * nested_get(result.backorder, data.cured_items[i_idx], t)
+        for i_idx in range(len(data.cured_items))
         for t in data.periods
     )
     production = sum(
@@ -26,8 +26,13 @@ def recompute_costs(data: ProcessedInstance, result: SolutionResult) -> tuple[fl
         for t in data.periods
         if nested_get(result.setup, data.machines[m_idx], data.configs[u_idx], t) >= 0.5
     )
-    total = holding + backorder + production
-    return holding, backorder, production, total
+    scrap_qty = result.extra.get("scrap") or {}
+    scrap = sum(
+        data.sc_i[i_idx] * float(scrap_qty.get(data.cured_items[i_idx], 0.0))
+        for i_idx in range(len(data.cured_items))
+    )
+    total = holding + backorder + production + scrap
+    return holding, backorder, production, scrap, total
 
 
 def check_objective(
@@ -41,9 +46,10 @@ def check_objective(
         report.metrics["skipped"] = True
         return report
 
-    holding, backorder, production, total = recompute_costs(data, result)
+    holding, backorder, production, scrap, total = recompute_costs(data, result)
     report.metrics["recomputed_total"] = round(total, 4)
     report.metrics["reported_total"] = round(result.objective, 4)
+    report.metrics["recomputed_scrap"] = round(scrap, 4)
 
     if not almost_equal(total, result.objective, tol):
         report.add_violation(
@@ -71,6 +77,14 @@ def check_objective(
             "objective",
             "production_mismatch",
             f"重算 production {production:.4f} != 报告 {result.production_cost:.4f}",
+        )
+
+    scrap_cost_reported = result.extra.get("scrap_cost")
+    if scrap_cost_reported is not None and not almost_equal(scrap, float(scrap_cost_reported), tol):
+        report.add_violation(
+            "objective",
+            "scrap_mismatch",
+            f"重算 scrap {scrap:.4f} != 报告 {scrap_cost_reported:.4f}",
         )
 
     return report

@@ -1,136 +1,88 @@
-"""Branch-and-price 测试：demo 算例 + 1 个 Set-B 新算例。"""
-
-from __future__ import annotations
-
-import json
-import sys
-import time
+"""Branch-and-price with 900s limit, no node IM, target optimal."""
+import sys, time, gc, os, traceback
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
-from common.paths import INSTANCES_DIR, RESULT_DIR
-from configuration import (
-    DEFAULT_BP_DEMO_MAX_NODES,
-    DEFAULT_CG_MAX_ITERATIONS,
-    DEFAULT_MIP_GAP,
-    SET_B,
-    SET_EXPERIMENT_LIMITS,
+_original_stderr = sys.stderr
+os.environ["GRB_CS_QUIET"] = "1"
+sys.stderr = open(os.devnull, "w")
+
+import configuration as cfg
+cfg.LEAD_TIME_CHOICES = (8, 9, 10)
+cfg.WINDOW_GENERATION_BY_SET["small_cg"] = {
+    "length_frac": (0.45, 0.65), "rel_frac": (0.03, 0.25), "min_length": 6
+}
+
+from configuration import SetConfig
+from instance_generator.generator import generate_instance
+from preprocessor.preprocess import preprocess
+from model_and_algo.branch_and_price import BranchAndPriceSolver, BranchAndPriceResult
+
+SEED = 101
+scfg = SetConfig("small_cg", 36, 5, 0, 50, 5)
+
+gc.collect(); time.sleep(1.0)
+print(f"Generating instance seed={SEED}...", flush=True)
+inst = generate_instance(scfg, 1, seed=SEED)
+data = preprocess(inst)
+T = len(data.periods); I = len(data.cured_items); M = len(data.machines)
+print(f"T={T} I={I} M={M}", flush=True)
+
+BP_TIME_LIMIT = 900
+BP_MAX_NODES  = 50       # many nodes; time is the real limit
+BP_Y0_DEPTH   = 2        # 2 Y=0 branches then switch to WIP/scrap
+
+cg_kwargs = {
+    "pricing_mode": "ebrp",
+    "pricing_inprocess": True,
+    "use_gurobi_init": False,
+    "skip_cross_check": True,
+}   # no per-CG time limit; B&P handles time via node_cg_limit
+
+print(f"B&P: max_nodes={BP_MAX_NODES}, time_limit={BP_TIME_LIMIT}s, y0_depth={BP_Y0_DEPTH}")
+print(f"     use_node_im=False, final_im=True, im_time_limit=120s")
+print(flush=True)
+
+t0 = time.perf_counter()
+bp = BranchAndPriceSolver(
+    data,
+    max_nodes=BP_MAX_NODES,
+    time_limit=BP_TIME_LIMIT,
+    y0_depth_budget=BP_Y0_DEPTH,
+    use_node_im=False,         # ← off
+    root_im=True,              # ← get initial UB for pruning
+    final_im=True,             # ← run IM at end
+    im_time_limit=120.0,       # ← 2 min for final IM
+    cg_kwargs=cg_kwargs,
 )
-from instance_generator.generator import generate_demo_instance, generate_instance
-from model_and_algo.branch_and_price import BranchAndPriceSolver
-from model_and_algo.column_generation import ColumnGenerationSolver
-from model_and_algo.im_model import solve_im
-from preprocessor.preprocess import load_instance, preprocess
 
-OUTPUT = RESULT_DIR / "bp_test_results.json"
-SET_B_MAX_NODES = 40
-SET_B_CG_ITERS = 300
+result = None
+try:
+    result: BranchAndPriceResult = bp.solve()
+except Exception:
+    sys.stderr = _original_stderr
+    traceback.print_exc()
+    sys.exit(1)
+runtime = time.perf_counter() - t0
 
-
-def ensure_set_b_new01() -> str:
-    name = "set_b_new_01"
-    path = INSTANCES_DIR / f"{name}.json"
-    if not path.exists():
-        inst = generate_instance(SET_B, 1, seed=9301)
-        inst.name = name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(inst.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
-    return name
-
-
-def run_case(
-    name: str,
-    *,
-    max_nodes: int,
-    cg_iters: int,
-    im_limit: float,
-    cg_init: float,
-) -> dict:
-    data = preprocess(load_instance(INSTANCES_DIR / f"{name}.json"))
-    print(f"\n=== {name} (max_nodes={max_nodes}) ===", flush=True)
-
-    t0 = time.perf_counter()
-    cg = ColumnGenerationSolver(
-        data,
-        max_iterations=cg_iters,
-        init_time_limit=cg_init,
-    )
-    cg.run()
-    cg_sec = time.perf_counter() - t0
-
-    t1 = time.perf_counter()
-    bp = BranchAndPriceSolver(
-        data,
-        max_nodes=max_nodes,
-        cg_max_iterations=cg_iters,
-        cg_init_time_limit=cg_init,
-        im_time_limit=im_limit,
-        mip_gap=DEFAULT_MIP_GAP,
-    )
-    bp_result = bp.solve()
-    bp_sec = time.perf_counter() - t1
-
-    t2 = time.perf_counter()
-    im = solve_im(data, time_limit=im_limit, mip_gap=DEFAULT_MIP_GAP, method="im_gurobi")
-    im_sec = time.perf_counter() - t2
-
-    lrmp = cg.lrmp_obj
-    im_obj = im.objective
-    bp_obj = bp_result.objective
-    row = {
-        "instance": name,
-        "lrmp": round(lrmp, 2) if lrmp else None,
-        "cg_sec": round(cg_sec, 2),
-        "cg_iters": len(cg.iteration_times),
-        "bp_obj": round(bp_obj, 2) if bp_obj is not None else None,
-        "bp_sec": round(bp_sec, 2),
-        "bp_nodes": bp_result.nodes_explored,
-        "bp_pruned": bp_result.nodes_pruned,
-        "bp_max_depth": bp_result.max_depth,
-        "bp_status": bp_result.status,
-        "im_obj": round(im_obj, 2) if im_obj else None,
-        "im_sec": round(im_sec, 2),
-        "cg_gap_pct": round((im_obj - lrmp) / im_obj * 100, 2) if im_obj and lrmp else None,
-        "bp_gap_pct": round((im_obj - bp_obj) / im_obj * 100, 2) if im_obj and bp_obj else None,
-    }
-    print(
-        f"  CG: LRMP={row['lrmp']} ({row['cg_sec']}s) | "
-        f"BP: obj={row['bp_obj']} nodes={row['bp_nodes']} depth={row['bp_max_depth']} ({row['bp_sec']}s) | "
-        f"IM: {row['im_obj']} ({row['im_sec']}s)",
-        flush=True,
-    )
-    return row
-
-
-def main() -> None:
-    generate_demo_instance()
-    ensure_set_b_new01()
-    cg_init_b = SET_EXPERIMENT_LIMITS["B"]["cg_init"]
-
-    rows = [
-        run_case(
-            "demo_small",
-            max_nodes=DEFAULT_BP_DEMO_MAX_NODES,
-            cg_iters=DEFAULT_CG_MAX_ITERATIONS,
-            im_limit=300.0,
-            cg_init=90.0,
-        ),
-        run_case(
-            "set_b_new_01",
-            max_nodes=SET_B_MAX_NODES,
-            cg_iters=SET_B_CG_ITERS,
-            im_limit=600.0,
-            cg_init=cg_init_b,
-        ),
-    ]
-
-    out = {"cases": rows}
-    RESULT_DIR.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"\nSaved {OUTPUT}", flush=True)
-
-
-if __name__ == "__main__":
-    main()
+print(f"\n{'='*60}")
+print(f"BRANCH-AND-PRICE RESULT")
+print(f"{'='*60}")
+print(f"  Status:           {result.status}")
+print(f"  Incumbent (UB):   {result.incumbent}")
+print(f"  Root LRMP (LB):   {result.root_lrmp}")
+print(f"  Global LB:        {result.best_node_lb}")
+if result.incumbent and result.best_node_lb and result.incumbent > 0:
+    gap = (result.incumbent - result.best_node_lb) / result.incumbent * 100
+    print(f"  Gap:              {gap:.2f}% (UB={result.incumbent:.1f}, LB={result.best_node_lb:.1f})")
+print(f"  Runtime:          {runtime:.1f}s ({runtime/60:.1f}min)")
+print(f"  Nodes explored:   {result.nodes_explored} / {result.nodes_created} created")
+print(f"  Nodes pruned:     {result.nodes_pruned}")
+print(f"  Max depth:        {result.max_depth}")
+print(f"  Y1 lazy created:  {result.y1_lazy_created}")
+print(f"  Lazy popped:      {result.lazy_popped}")
+print(f"  DFS popped:       {result.dfs_popped}")
+print(f"  Best fixed Y:     {len(result.best_fixed_y)} assignments")
+print(f"\nDone.", flush=True)

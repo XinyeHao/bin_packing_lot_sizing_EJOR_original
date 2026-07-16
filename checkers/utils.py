@@ -9,7 +9,7 @@ from typing import Any
 
 from common.data_models import SolutionResult
 from configuration import CHECKER_TOL
-from common.paths import INSTANCES_DIR
+from preprocessor.instance_db import instance_db_path, list_instances
 from preprocessor.preprocess import load_instance, preprocess
 
 
@@ -60,15 +60,17 @@ def load_solution_result(path: str | Path) -> SolutionResult:
     )
 
 
-def resolve_instance_path(instance_name: str) -> Path:
-    path = INSTANCES_DIR / f"{instance_name}.json"
+def resolve_instance_path(instance_name: str) -> str:
+    """返回算例名称（数据存于 instances/{name}.db）。"""
+    name = instance_name.removesuffix(".json").removesuffix(".db")
+    path = instance_db_path(name)
     if not path.exists():
-        raise FileNotFoundError(f"Instance not found: {path}")
-    return path
+        raise FileNotFoundError(f"算例 '{name}' 不存在: {path}")
+    return name
 
 
 def load_processed_instance(instance_name: str):
-    return preprocess(load_instance(resolve_instance_path(instance_name)))
+    return preprocess(load_instance(instance_name))
 
 
 def setup_window_start(period: int, l_u: int) -> int:

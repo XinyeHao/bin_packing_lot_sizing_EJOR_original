@@ -28,9 +28,14 @@ class InstanceData:
     # 以下为可选/新字段（有默认值，必须放在最后）
     end_item_ids: list[str] = field(default_factory=list)   # 已废弃（无装配）
     bom: dict[str, dict[str, int]] = field(default_factory=dict)  # 已废弃
-    deadlines: dict[str, int] = field(default_factory=dict)   # 新：最晚加工时段（1-based）
+    deadlines: dict[str, int] = field(default_factory=dict)   # 最晚开始加工时段 D_i（1-based）
+    earliest_starts: dict[str, int] = field(default_factory=dict)  # 最早开始加工时段 E_i（1-based）
     wip_quantities: dict[str, int] = field(default_factory=dict)  # 初始 WIP 量 w_i
     scrap_costs: dict[str, float] = field(default_factory=dict)   # 单位报废成本 sc_i
+    config_wait_steps: dict[str, list[list[int]]] = field(default_factory=dict)
+    item_wait_steps: dict[str, list[list[int]]] = field(default_factory=dict)  # 物料级阶梯（优先）
+    item_machines: dict[str, list[str]] = field(default_factory=dict)  # 可加工机台 M_i；缺省=全机
+    period_hours: float = 1.0
     seed: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,6 +49,7 @@ class InstanceData:
             "end_item_ids": self.end_item_ids,
             "config_lead_times": self.config_lead_times,
             "item_config": self.item_config,
+            "item_machines": self.item_machines,
             "item_lead_times": self.item_lead_times,
             "tray_lengths": self.tray_lengths,
             "machine_capacities": self.machine_capacities,
@@ -53,8 +59,12 @@ class InstanceData:
             "bom": self.bom,
             "demand": {k: {str(t): v for t, v in vals.items()} for k, vals in self.demand.items()},
             "deadlines": self.deadlines,
+            "earliest_starts": self.earliest_starts,
             "wip_quantities": self.wip_quantities,
             "scrap_costs": {k: float(v) for k, v in self.scrap_costs.items()},
+            "config_wait_steps": self.config_wait_steps,
+            "item_wait_steps": self.item_wait_steps,
+            "period_hours": self.period_hours,
             "seed": self.seed,
         }
         return d
@@ -65,6 +75,11 @@ class InstanceData:
             item: {int(t): qty for t, qty in periods.items()}
             for item, periods in data["demand"].items()
         }
+        raw_machines = data.get("item_machines")
+        if raw_machines is not None:
+            item_machines = {k: list(v) for k, v in raw_machines.items()}
+        else:
+            item_machines = {k: [v] for k, v in data.get("item_machine", {}).items()}
         return cls(
             name=data["name"],
             set_type=data["set_type"],
@@ -75,6 +90,7 @@ class InstanceData:
             end_item_ids=list(data.get("end_item_ids", [])),
             config_lead_times={k: int(v) for k, v in data["config_lead_times"].items()},
             item_config=dict(data["item_config"]),
+            item_machines=item_machines,
             item_lead_times={k: int(v) for k, v in data["item_lead_times"].items()},
             tray_lengths={k: float(v) for k, v in data["tray_lengths"].items()},
             machine_capacities={k: float(v) for k, v in data["machine_capacities"].items()},
@@ -90,8 +106,18 @@ class InstanceData:
             },
             demand=demand,
             deadlines={k: int(v) for k, v in data.get("deadlines", {}).items()},
+            earliest_starts={k: int(v) for k, v in data.get("earliest_starts", {}).items()},
             wip_quantities={k: int(v) for k, v in data.get("wip_quantities", {}).items()},
             scrap_costs={k: float(v) for k, v in data.get("scrap_costs", {}).items()},
+            config_wait_steps={
+                k: [list(map(int, step)) for step in v]
+                for k, v in data.get("config_wait_steps", {}).items()
+            },
+            item_wait_steps={
+                k: [list(map(int, step)) for step in v]
+                for k, v in data.get("item_wait_steps", {}).items()
+            },
+            period_hours=float(data.get("period_hours", 1.0)),
             seed=data.get("seed"),
         )
 
@@ -126,10 +152,15 @@ class ProcessedInstance:
     bom_parents: list[list[tuple[int, int]]]
     items_by_config: list[list[int]]
     config_of_item: list[int]
+    b_im: list[list[int]]           # b_im[i][m]=1 表示物料 i 可在机 m 加工
+    items_by_machine: list[list[int]]
+    allowed_machine_count: list[int]  # |M_i|；等于 |M| 表示未限制（全机可行）
     min_q: float
-    deadlines: list[int]      # 每个 cured item 的最晚进罐时段（1-based）
+    deadlines: list[int]      # 每个物料的最晚开始加工时段 D_i（1-based）
+    earliest_starts: list[int]  # 每个物料的最早开始加工时段 E_i（1-based）
     w_i: list[int]            # 初始 WIP 量
     sc_i: list[float]         # 单位报废成本
+    lt_it: list[list[int]]    # lt_it[i_idx][t_idx]，占罐时段数（阶跃）
 
 
 @dataclass

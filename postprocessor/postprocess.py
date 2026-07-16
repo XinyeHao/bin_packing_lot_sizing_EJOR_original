@@ -16,6 +16,7 @@ def enrich_result(result: SolutionResult) -> SolutionResult:
             "holding": (result.holding_cost or 0) / result.objective,
             "backorder": (result.backorder_cost or 0) / result.objective,
             "production": (result.production_cost or 0) / result.objective,
+            "scrap": (result.extra.get("scrap_cost") or 0) / result.objective,
         }
     if result.objective is not None and result.lower_bound is not None and result.objective > 0:
         result.extra["optimality_gap"] = (result.objective - result.lower_bound) / result.objective
@@ -48,4 +49,16 @@ def format_summary(result: SolutionResult) -> str:
         lines.append(f"  延期成本: {result.backorder_cost:.2f}")
     if result.production_cost is not None:
         lines.append(f"  生产成本: {result.production_cost:.2f}")
+    if result.method in {"cg", "column_generation"}:
+        extra = result.extra or {}
+        lines.append(f"LRMP 下界: {result.lower_bound:.2f}" if result.lower_bound is not None else "LRMP 下界: —")
+        lines.append(f"迭代次数: {extra.get('num_iterations', '—')}")
+        lines.append(f"收敛: {extra.get('converged', False)}  停止原因: {extra.get('stop_reason') or '—'}")
+        if extra.get("last_min_rc") is not None:
+            lines.append(f"末轮 min_RC: {extra['last_min_rc']:.6f}")
+        ncol = extra.get("num_columns")
+        if ncol:
+            lines.append(f"列数: {sum(ncol.values())}  (各机 {ncol})")
+        if extra.get("total_scrap_qty") is not None:
+            lines.append(f"LRMP 报废量: {extra.get('total_scrap_qty')}")
     return "\n".join(lines)

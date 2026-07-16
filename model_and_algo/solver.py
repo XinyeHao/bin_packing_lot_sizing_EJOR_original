@@ -8,10 +8,13 @@ from common.data_models import ProcessedInstance, SolutionResult
 from configuration import (
     DEFAULT_BP_MAX_NODES,
     DEFAULT_BP_NODE_IM_TIME_LIMIT,
+    DEFAULT_BP_TIME_LIMIT,
     DEFAULT_CG_INIT_TIME_CAP,
     DEFAULT_CG_MAX_ITERATIONS,
     DEFAULT_MIP_GAP,
     DEFAULT_TIME_LIMIT,
+    SET_C_CG,
+    SET_EXPERIMENT_LIMITS,
 )
 from model_and_algo.branch_and_price import solve_branch_and_price
 from model_and_algo.cgfo import solve_cgfo
@@ -30,12 +33,36 @@ def solve(
     """统一求解接口。"""
     method = method.lower()
     if method in {"im", "im_gurobi", "sim"}:
-        return solve_im(data, time_limit=time_limit, mip_gap=mip_gap, method="im_gurobi")
+        verbose = kwargs.get("verbose", False)
+        return solve_im(
+            data,
+            time_limit=time_limit,
+            mip_gap=mip_gap,
+            method="im_gurobi",
+            verbose=verbose,
+        )
     if method in {"cg", "column_generation"}:
+        cg_kwargs = dict(kwargs)
+        verbose = cg_kwargs.pop("verbose", None)
+        if data.raw.name.startswith("set_c_"):
+            opts = {**SET_C_CG, **cg_kwargs}
+            if verbose is not None:
+                opts["verbose"] = verbose
+            opts.setdefault("time_limit", time_limit)
+            max_iters = opts.pop("max_iterations", cg_max_iterations)
+            return solve_column_generation(
+                data,
+                max_iterations=max_iters,
+                init_time_limit=min(time_limit, DEFAULT_CG_INIT_TIME_CAP),
+                set_c=True,
+                **opts,
+            )
         return solve_column_generation(
             data,
             max_iterations=cg_max_iterations,
             init_time_limit=min(time_limit, DEFAULT_CG_INIT_TIME_CAP),
+            verbose=verbose,
+            **cg_kwargs,
         )
     if method in {"cgfo_i", "cgfo-i", "cgfo1"}:
         return solve_cgfo(
@@ -60,5 +87,7 @@ def solve(
             cg_max_iterations=cg_max_iterations,
             im_time_limit=min(time_limit, DEFAULT_BP_NODE_IM_TIME_LIMIT),
             mip_gap=mip_gap,
+            time_limit=kwargs.get("time_limit", min(time_limit, DEFAULT_BP_TIME_LIMIT)),
+            cg_kwargs=kwargs.get("cg_kwargs"),
         )
     raise ValueError(f"Unknown method: {method}")

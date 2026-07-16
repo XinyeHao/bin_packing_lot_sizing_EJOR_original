@@ -130,7 +130,7 @@ def main() -> None:
         all_reports.append(r)
         print(r.summary(), "\n")
 
-    print("=== 2. 子问题 BLDP ===")
+    print("=== 2. 子问题 EBRP / Gurobi ===")
     for name in AUDIT_SUBPROBLEM_INSTANCES:
         data = load_processed_instance(name)
         r = check_subproblem_solver(data)

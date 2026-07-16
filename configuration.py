@@ -13,6 +13,24 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 INSTANCES_DIR = PROJECT_ROOT / "instances"
 RESULT_DIR = PROJECT_ROOT / "result"
 
+DEFAULT_PERIOD_HOURS = 1.0
+
+# 时间窗与等待阶梯联动生成（按物料）
+WINDOW_GENERATION_BY_SET: dict[str, dict] = {
+    "A": {"length_frac": (0.38, 0.58), "rel_frac": (0.06, 0.22), "min_length": 5},
+    "B": {"length_frac": (0.40, 0.62), "rel_frac": (0.04, 0.18), "min_length": 6},
+    "demo": {"length_frac": (0.65, 0.90), "rel_frac": (0.05, 0.20), "min_length": 4},
+    "large": {"length_frac": (0.42, 0.60), "rel_frac": (0.05, 0.20), "min_length": 6},
+    # Set-C：就绪后 1~2 天内需进罐（工艺有效期）；配合锚点错峰与 jitter 压低 EBRP 活跃件数
+    "C": {"length_frac": (0.22, 0.38), "rel_frac": (0.02, 0.55), "min_length": 24},
+    # 小规模 CG：窄窗 + 错峰，配合高报废罚则迫使加工与多轮补列
+    "small_cg": {"length_frac": (0.20, 0.38), "rel_frac": (0.03, 0.30), "min_length": 4},
+    # 中规模 CG：在 Gurobi 子问题可承受范围内放大 T、|I|、|M|
+    "med_cg": {"length_frac": (0.22, 0.40), "rel_frac": (0.03, 0.28), "min_length": 5},
+}
+ITEM_STEP_COUNT_RANGE = (1, 2)       # 每件时间窗内 lt 阶跃次数
+ITEM_STEP_DELTA_RANGE = (1, 3)       # 每档额外占罐小时（折算为时段）
+
 # ---------------------------------------------------------------------------
 # 算例规模（论文 Table 1）
 # ---------------------------------------------------------------------------
@@ -30,9 +48,37 @@ class SetConfig:
 
 SET_A = SetConfig("A", 15, 5, 5, 25, 5)
 SET_B = SetConfig("B", 25, 10, 7, 35, 7)
+# 小规模 CG 压测：多机竞争 + 窄窗，|I_m|≤18 便于 Gurobi 子问题
+SET_SMALL_CG = SetConfig("small_cg", 18, 4, 0, 24, 3)
+# 中规模 CG：Gurobi 定价子问题（|I_m| 约 30~40）
+SET_MED_CG = SetConfig("med_cg", 28, 4, 0, 40, 4)
 DEMO_CONFIG = SetConfig("demo", 6, 3, 2, 4, 2)
+LARGE_CONFIG = SetConfig("large", 20, 6, 0, 28, 4)
+# Set-C：周计划 IM 测试算例（T=120h≈5天×24h，M=5 热压罐，U=5，|I|≈225）
+SET_C = SetConfig("C", 120, 5, 0, 0, 5)
 
-SET_CONFIGS: dict[str, SetConfig] = {"A": SET_A, "B": SET_B}
+SET_CONFIGS: dict[str, SetConfig] = {
+    "A": SET_A,
+    "B": SET_B,
+    "C": SET_C,
+    "large": LARGE_CONFIG,
+    "small_cg": SET_SMALL_CG,
+    "med_cg": SET_MED_CG,
+}
+
+SMALL_CG_ITEM_MACHINES_RANGE = (2, 4)   # 每件 2~4 台可加工 → 机台竞争
+SMALL_CG_INSTANCE_COUNT = 6
+SMALL_CG_BASE_SEED = 601
+# 报废成本 ≥ factor×最廉占罐费，避免“全报废=最优”导致 CG 一轮收敛
+SMALL_CG_SCRAP_SETUP_FACTOR = 1.2
+
+MED_CG_ITEM_MACHINES_RANGE = (2, 4)
+MED_CG_INSTANCE_COUNT = 3
+MED_CG_BASE_SEED = 701
+MED_CG_SCRAP_SETUP_FACTOR = 1.2
+MED_CG_IM_TIME_LIMIT = 600.0
+MED_CG_CG_TIME_LIMIT = 3600.0
+MED_CG_PRICING_TIME_LIMIT = 60.0
 
 LEAD_TIME_CHOICES = (1, 2, 3)
 BOM_CHOICES = (0, 2, 4)
@@ -43,6 +89,42 @@ INSTANCE_COUNT_DEFAULT = 20
 INSTANCE_BASE_SEED = 42
 DEMO_INSTANCE_SEED = 0
 DEMO_INSTANCE_NAME = "demo_small"
+LARGE_INSTANCE_NAME = "large_01"
+LARGE_INSTANCE_SEED = 100
+# Set-C 算例（名称 set_c_01 …；模拟 5 台热压罐、每周约 225 件、每批约 2~4 件）
+SET_C_INSTANCE_COUNT = 2
+SET_C_INSTANCE_BASE_SEED = 200
+# 件数：225 ≈ 5 罐 × 120h × 密度 0.375；每批约 3 件 → 约 75 批/周
+SET_C_SLOT_DENSITY_RANGE = (0.4, 0.4)
+SET_C_MIN_ITEMS = 222
+SET_C_MAX_ITEMS = 228
+SET_C_TARGET_ITEMS_PER_BATCH = 3.0
+SET_C_BATCH_ITEMS_RANGE = (2, 4)
+# 占罐（小时为时段）：单批约 4~6h，窗内 1~2 档阶跃
+SET_C_LEAD_TIME_CHOICES = (4, 5)
+SET_C_STEP_DELTA_RANGE = (1, 3)
+# Set-C 时间窗（业务×算法双赢，见下表）
+# | 参数 | 旧值 | 新值 | 业务含义 | 算法效果 |
+# | length_frac | 0.50–0.72 | 0.22–0.38 | 就绪后约 1–1.5 天须进罐 | 窗长中位 74h→39h |
+# | min_length | 48h | 24h | 最短 1 天（仍容 4–6h 占罐+阶跃） | 避免强制 2 天宽窗 |
+# | jitter | ±3h | ±12h | 同配置 1 个班次带内就绪 | 45 件不再同时进池 |
+# | anchor_stagger | 无 | 五配置错峰 | 不同产品线周内分批就绪 | active@t 中位 217→~80 |
+# 实测（set_c_01_new）：零对偶 ~0.17s/机；随机对偶 ~3.3s/机精确；CG 真实对偶常触 120s 限时
+SET_C_DEMAND_START_FRACTION = 0.35
+# 同配置就绪微扰（小时）：±12h ≈ 1 个班次带，保留合批又避免 45 件同时进池
+SET_C_CONFIG_WINDOW_JITTER = 12
+# 五类配置锚点沿周计划错峰（各占约 1/5 可用时段），避免周中 200+ 件同时可排
+SET_C_CONFIG_ANCHOR_STAGGER = True
+SET_C_MACHINE_CAPACITY_RANGE = (6.8, 7.2)
+SET_C_TRAY_LENGTH_LONG_RANGE = (1.9, 2.5)
+SET_C_TRAY_LENGTH_SHORT_RANGE = (1.5, 2.0)
+SET_C_TRAY_LONG_PROB = 0.7
+SET_C_MACHINE_TIME_TARGET = 0.45
+SET_C_SCRAP_SETUP_FACTOR = 2.5
+# 每件物料可加工机台数 |M_i| 的生成范围（1=仅单机；|M|=全机）
+SET_C_ITEM_MACHINES_RANGE = (1, 2)
+SET_C_IM_TIME_LIMIT = 1200.0   # Set-C IM：20 分钟
+SET_C_CG_TIME_LIMIT = 600.0    # Set-C CG：10 分钟（LRMP 精确收敛目标）
 
 # 算例随机生成参数（论文 Section 5.1）
 TRAY_LENGTH_LONG_PROB = 0.8
@@ -55,8 +137,31 @@ END_ITEM_HOLDING_MULTIPLIER = 1.2
 BACKORDER_COST_MULTIPLIER = 10.0
 SCRAP_COST_MULTIPLIER = 2.0  # sc_i = SCRAP_COST_MULTIPLIER * bc_i，须 > bc_i
 DEMAND_PERIODS_PER_ITEM = 2
-# 最晚进罐 D_i：在 [ceil(DEADLINE_MIN_FRACTION * T), T] 上均匀随机（T=10 时即从 3 起）
+SMALL_CG_GENERATION = {
+    "machine_capacity_range": (4.0, 6.5),
+    "demand_periods_per_item": DEMAND_PERIODS_PER_ITEM,
+}
+MED_CG_GENERATION = {
+    "machine_capacity_range": (4.0, 6.5),
+    "demand_periods_per_item": DEMAND_PERIODS_PER_ITEM,
+}
+# WIP 可开始加工时间窗 [E_i, D_i]（1-based，均指“开始进罐/加工”的时段）
+# E_i ∈ [ceil(EARLIEST_START_MIN_FRACTION·T), ceil(EARLIEST_START_MAX_FRACTION·T)]
+# D_i ∈ [max(E_i, ceil(DEADLINE_MIN_FRACTION·T)), T]
+EARLIEST_START_MIN_FRACTION = 0.05
+EARLIEST_START_MAX_FRACTION = 0.45
 DEADLINE_MIN_FRACTION = 0.3
+
+# Set-B 专用生成参数（加宽加工窗、略收紧产能/需求密度，使 IM 更接近论文量级 ~600–1800s）
+# 不改变 IM 决策变量与约束结构，仅影响算例数据难度。
+SET_B_GENERATION = {
+    "earliest_start_min_period": 1,       # E_i ∈ [1, 10]
+    "earliest_start_max_period": 10,
+    "deadline_min_period": 15,            # D_i ∈ [15, T]（T=25 时为 [15,25]）
+    "machine_capacity_range": (4.0, 8.0),
+    "num_cured_items": 45,                # 论文 Set-B 为 35，此处略增以抬高 IM 难度
+    "demand_periods_per_item": 8,
+}
 
 # ---------------------------------------------------------------------------
 # 求解器默认参数
@@ -75,11 +180,30 @@ DEFAULT_CG_INIT_TIME_CAP = 180.0
 # 0 表示按机器数并行；>0 为进程池大小
 DEFAULT_CG_PRICING_WORKERS = 0
 DEFAULT_CG_PRICING_TIME_LIMIT = 60.0
+DEFAULT_PROGRESS_INTERVAL_SEC = 60.0
+EBRP_EXACT_MAX_ITEMS = 40   # 按单机专属物料数 |I_m| 判定，非全局 |I|
+EBRP_DEFAULT_TIME_LIMIT = 120.0
+EBRP_HEURISTIC_TIME_LIMIT = 1.0
+IM_PRICING_DEFAULT_TIME_LIMIT = 90.0
 
 # Branch-and-price
-DEFAULT_BP_MAX_NODES = 200
-DEFAULT_BP_NODE_IM_TIME_LIMIT = 300.0
+DEFAULT_BP_MAX_NODES = 5000
+DEFAULT_BP_OPT_MAX_NODES = 20000
+DEFAULT_BP_NODE_IM_TIME_LIMIT = 60.0
+DEFAULT_BP_USE_NODE_IM = False  # 节点 CG 收敛后是否用 IM 求 incumbent
+DEFAULT_BP_ROOT_IM = True  # 根节点 IM 求初始上界
+DEFAULT_BP_FINAL_IM = True  # 结束时 IM 补 incumbent
 DEFAULT_BP_DEMO_MAX_NODES = 80
+DEFAULT_INSTANCE_TIME_LIMIT = 600.0  # 每个算例总时限（CG/BP/IM 合计）
+DEFAULT_BP_TIME_LIMIT = 600.0  # B&P 单算例求解时限
+DEFAULT_BP_OPT_TIME_LIMIT = 3600.0  # 追求最优时的 B&P 时限
+# B&P 单算例时限不超过同算例 IM 耗时的该比例（须 < 0.5）
+DEFAULT_BP_IM_TIME_RATIO = 0.45
+DEFAULT_BP_Y0_DEPTH_BUDGET = 200
+DEFAULT_BP_LAZY_Y1_CG_CAP = 60.0
+DEFAULT_BP_LB_STALL_EPS = 0.5
+BP_STRATEGIES = ("new_policy", "baseline_y0_dfs", "old_hybrid")
+DEFAULT_BP_STRATEGY = "new_policy"
 
 CGFO_THRESHOLD_I = 0.0
 CGFO_THRESHOLD_II = 0.10
@@ -93,6 +217,66 @@ SET_B_TEST_METHODS = ("lim", "cg", "im_gurobi", "cgfo_ii")
 SET_EXPERIMENT_LIMITS: dict[str, dict[str, float]] = {
     "A": {"im_time": 900.0, "cgfo_time": 900.0, "cg_init": 90.0},
     "B": {"im_time": 1800.0, "cgfo_time": 1800.0, "cg_init": 180.0},
+    "C": {"im_time": SET_C_IM_TIME_LIMIT, "cg_time": SET_C_CG_TIME_LIMIT, "cgfo_time": SET_C_CG_TIME_LIMIT, "cg_init": 180.0},
+}
+
+# Set-C CG：EBRP-H 启发式定价（1s/机，并行墙钟≈1s）；精确 EBRP 见 ebrp_time_limit=None
+SET_C_CG = {
+    "use_gurobi_init": False,
+    "rc_tolerance": DEFAULT_CG_RC_TOLERANCE,
+    "pricing_inprocess": False,
+    "pricing_batch": False,
+    "pricing_workers": 0,
+    "time_limit": SET_C_CG_TIME_LIMIT,
+    "max_iterations": 20000,
+    "verbose": True,
+    "pricing_mode": "ebrp_heuristic",
+    "ebrp_force": True,
+    "ebrp_time_limit": EBRP_HEURISTIC_TIME_LIMIT,
+}
+
+# Set-C CG：显式 EBRP / 规范 Gurobi 定价变体
+SET_C_CG_EBRP = {
+    **SET_C_CG,
+    "pricing_mode": "ebrp",
+    "use_gurobi_init": False,
+    "pricing_inprocess": False,
+    "pricing_batch": False,
+    "pricing_workers": 0,
+    "ebrp_time_limit": None,
+    "im_pricing_time_limit": IM_PRICING_DEFAULT_TIME_LIMIT,
+}
+
+# Set-C：强制 EBRP（限时，非精确）；绕过 |I|>40 的 Gurobi 回退
+SET_C_CG_EBRP_TIMED = {
+    **SET_C_CG_EBRP,
+    "pricing_mode": "ebrp_force",
+    "ebrp_force": True,
+    "ebrp_time_limit": 60.0,
+    "max_iterations": 3,
+}
+
+SET_C_CG_IM = {
+    **SET_C_CG,
+    "pricing_mode": "im_gurobi",
+    "use_gurobi_init": False,
+    "pricing_inprocess": True,
+    "pricing_workers": 0,
+    "im_pricing_time_limit": IM_PRICING_DEFAULT_TIME_LIMIT,
+}
+
+# Set-B 快速 CG：跳过 Gurobi 初始列 + 7 路并行 map + 轻量 RC 回传（负 RC 才 pickle 完整列）
+SET_B_CG_FAST = {
+    "use_gurobi_init": False,
+    "rc_tolerance": DEFAULT_CG_RC_TOLERANCE,
+    "pricing_inprocess": False,
+    "pricing_batch": False,
+    "time_limit": None,
+}
+
+SET_B_CG_CUTS = {
+    **SET_B_CG_FAST,
+    "lrmp_cuts": "standard",
 }
 
 # Set-B 快速测试（5 算例）
@@ -166,7 +350,7 @@ CHECKER_TOL = {
     "cg_convergence": 1e-6,
     "cg_column_select": 1e-6,
     "mip_gap_report": 0.01,
-    "bldp_dp": 1e-9,
+    "pricing_dp": 1e-9,
     "objective_divisor": 1e-9,
     "setup_derive": 0.5,
 }

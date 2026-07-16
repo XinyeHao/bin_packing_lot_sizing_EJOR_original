@@ -1,4 +1,4 @@
-"""集成模型 SIM（IM）的 Gurobi 实现。"""
+"""集成模型 IM 的 Gurobi 实现（单件物料、lt_it 阶跃占罐）。"""
 
 from __future__ import annotations
 
@@ -15,11 +15,23 @@ from configuration import (
     DEFAULT_MIP_GAP,
     DEFAULT_TIME_LIMIT,
 )
-from preprocessor.preprocess import max_tray_count
 
 
-def _setup_window_start(t: int, l_u: int) -> int:
-    return max(t - l_u + 1, 1)
+def _big_m(data: ProcessedInstance) -> int:
+    num_t = len(data.periods)
+    max_lt = max(max(row) for row in data.lt_it) if data.lt_it else 1
+    return num_t + max_lt
+
+
+def _item_start_feasible(data: ProcessedInstance, i_idx: int, t_idx: int, t_max: int) -> bool:
+    period = data.periods[t_idx]
+    e_i = data.earliest_starts[i_idx]
+    d_i = data.deadlines[i_idx]
+    return e_i <= period <= d_i and period + data.lt_it[i_idx][t_idx] - 1 <= t_max
+
+
+def _item_on_machine(data: ProcessedInstance, i_idx: int, m_idx: int) -> bool:
+    return data.b_im[i_idx][m_idx] == 1
 
 
 def build_im_model(
@@ -30,8 +42,8 @@ def build_im_model(
     linear_relaxation: bool = False,
     verbose: bool = False,
 ) -> tuple[gp.Model, dict[str, Any]]:
-    """构建 SIM 模型。fixed_y 的键为 (u_idx, m_idx, t_idx)，值为 0/1。"""
-    model = gp.Model("IM_SIM")
+    """构建 IM。fixed_y 键为 (u_idx, m_idx, t_idx)，值为 0/1。"""
+    model = gp.Model("IM")
     if not verbose:
         model.Params.OutputFlag = 0
     if time_limit is not None:
@@ -44,19 +56,18 @@ def build_im_model(
     num_m = len(data.machines)
     num_u = len(data.configs)
     num_i = len(data.cured_items)
-    num_j = len(data.end_items)  # 通常为 0
+    bar_m = _big_m(data)
 
     int_type = GRB.CONTINUOUS if linear_relaxation else GRB.INTEGER
     bin_type = GRB.CONTINUOUS if linear_relaxation else GRB.BINARY
     bin_ub = 1.0
 
-    # 简化：只有 cured_items（现为最终产品）
-    S_plus = model.addVars(num_i, num_t, vtype=int_type, lb=0, name="S_plus")
-    S_minus = model.addVars(num_i, num_t, vtype=int_type, lb=0, name="S_minus")
-    R = model.addVars(num_i, vtype=int_type, lb=0, name="R")
-    X = model.addVars(num_i, num_m, num_t, vtype=int_type, lb=0, name="X")
+    S_plus = model.addVars(num_i, num_t, vtype=int_type, lb=0, ub=1, name="S_plus")
+    S_minus = model.addVars(num_i, num_t, vtype=int_type, lb=0, ub=1, name="S_minus")
+    R = model.addVars(num_i, vtype=bin_type, lb=0, ub=bin_ub, name="R")
+    X = model.addVars(num_i, num_m, num_t, vtype=bin_type, lb=0, ub=bin_ub, name="X")
     Y = model.addVars(num_u, num_m, num_t, vtype=bin_type, lb=0, ub=bin_ub, name="Y")
-    Z = model.addVars(num_u, num_m, num_t, vtype=bin_type, lb=0, ub=bin_ub, name="Z")
+    Lspan = model.addVars(num_u, num_m, num_t, vtype=GRB.INTEGER, lb=0, ub=num_t, name="L")
 
     if fixed_y is not None:
         for (u_idx, m_idx, t_idx), val in fixed_y.items():
@@ -74,71 +85,135 @@ def build_im_model(
     scrap = gp.quicksum(data.sc_i[i] * R[i] for i in range(num_i))
     model.setObjective(holding + backorder + production + scrap, GRB.MINIMIZE)
 
-    # 直接需求平衡（cured items 即最终产品）
+    # 成品流平衡：完工量由 X 在 t' 开工、lt_{it'} 后于 t 到达
     for i_idx in range(num_i):
         for t_idx in range(num_t):
             prev_inv = 0 if t_idx == 0 else S_plus[i_idx, t_idx - 1]
             prev_bo = 0 if t_idx == 0 else S_minus[i_idx, t_idx - 1]
             prod_in = gp.quicksum(
-                X[i_idx, m_idx, prod_t]
+                X[i_idx, m_idx, prod_t_idx]
                 for m_idx in range(num_m)
-                for prod_t in [t_idx - int(data.l_ti[i_idx])]
-                if prod_t >= 0
+                if _item_on_machine(data, i_idx, m_idx)
+                for prod_t_idx in range(num_t)
+                if T[prod_t_idx] + data.lt_it[i_idx][prod_t_idx] - 1 == T[t_idx]
             )
-            dem = data.d_it[i_idx][t_idx] if hasattr(data, "d_it") and data.d_it else 0
+            dem = data.d_it[i_idx][t_idx]
             model.addConstr(
                 prev_inv - prev_bo + prod_in
-                == dem + S_plus[i_idx, t_idx] - S_minus[i_idx, t_idx],
-                name=f"flow_item_{i_idx}_{t_idx}",
+                == dem * (1 - R[i_idx]) + S_plus[i_idx, t_idx] - S_minus[i_idx, t_idx],
+                name=f"flow_{i_idx}_{t_idx}",
             )
 
-    for m_idx in range(num_m):
-        for t_idx in range(num_t):
-            model.addConstr(gp.quicksum(Z[u_idx, m_idx, t_idx] for u_idx in range(num_u)) <= 1, name=f"one_cfg_{m_idx}_{t_idx}")
-
-    for u_idx in range(num_u):
-        l_u = data.l_u[u_idx]
-        for m_idx in range(num_m):
-            for t_idx in range(num_t):
-                t_start = _setup_window_start(T[t_idx], l_u) - 1
-                model.addConstr(
-                    gp.quicksum(Y[u_idx, m_idx, tp] for tp in range(t_start, t_idx + 1)) == Z[u_idx, m_idx, t_idx],
-                    name=f"link_yz_{u_idx}_{m_idx}_{t_idx}",
-                )
-
-    for i_idx in range(num_i):
-        cap_count = [max_tray_count(data.q_m[m_idx], data.v_i[i_idx]) for m_idx in range(num_m)]
-        for m_idx in range(num_m):
-            for t_idx in range(num_t):
-                cfg_match = gp.quicksum(data.b_iu[i_idx][u_idx] * Y[u_idx, m_idx, t_idx] for u_idx in range(num_u))
-                model.addConstr(X[i_idx, m_idx, t_idx] <= cap_count[m_idx] * cfg_match, name=f"cfg_pack_{i_idx}_{m_idx}_{t_idx}")
-
+    # 每期至多一种新开配置
     for m_idx in range(num_m):
         for t_idx in range(num_t):
             model.addConstr(
-                gp.quicksum(data.v_i[i_idx] * X[i_idx, m_idx, t_idx] for i_idx in range(num_i)) <= data.q_m[m_idx],
+                gp.quicksum(Y[u_idx, m_idx, t_idx] for u_idx in range(num_u)) <= 1,
+                name=f"one_setup_{m_idx}_{t_idx}",
+            )
+
+    # 开始生产：有生产必有 setup，有 setup 必有生产
+    for u_idx in range(num_u):
+        i_list = data.items_by_config[u_idx]
+        cap = max(1, len(i_list))
+        for m_idx in range(num_m):
+            for t_idx in range(num_t):
+                x_sum = gp.quicksum(
+                    X[i_idx, m_idx, t_idx]
+                    for i_idx in i_list
+                    if _item_on_machine(data, i_idx, m_idx)
+                )
+                model.addConstr(x_sum <= cap * Y[u_idx, m_idx, t_idx], name=f"x_le_y_{u_idx}_{m_idx}_{t_idx}")
+                model.addConstr(Y[u_idx, m_idx, t_idx] <= x_sum, name=f"y_le_x_{u_idx}_{m_idx}_{t_idx}")
+
+    # 单件须匹配自身配置 setup（仅可行开工点）
+    for i_idx in range(num_i):
+        u_idx = data.config_of_item[i_idx]
+        for m_idx in range(num_m):
+            if not _item_on_machine(data, i_idx, m_idx):
+                continue
+            for t_idx in range(num_t):
+                if not _item_start_feasible(data, i_idx, t_idx, T[-1]):
+                    continue
+                model.addConstr(
+                    X[i_idx, m_idx, t_idx] <= Y[u_idx, m_idx, t_idx],
+                    name=f"x_match_y_{i_idx}_{m_idx}_{t_idx}",
+                )
+
+    # 跨期数下界与 setup 联动
+    for u_idx in range(num_u):
+        for i_idx in data.items_by_config[u_idx]:
+            for m_idx in range(num_m):
+                if not _item_on_machine(data, i_idx, m_idx):
+                    continue
+                for t_idx in range(num_t):
+                    if not _item_start_feasible(data, i_idx, t_idx, T[-1]):
+                        continue
+                    model.addConstr(
+                        Lspan[u_idx, m_idx, t_idx] >= data.lt_it[i_idx][t_idx] * X[i_idx, m_idx, t_idx],
+                        name=f"l_ge_lt_{u_idx}_{i_idx}_{m_idx}_{t_idx}",
+                    )
+        for m_idx in range(num_m):
+            for t_idx in range(num_t):
+                model.addConstr(
+                    Lspan[u_idx, m_idx, t_idx] <= bar_m * Y[u_idx, m_idx, t_idx],
+                    name=f"l_le_my_{u_idx}_{m_idx}_{t_idx}",
+                )
+
+    # 机台不重叠（批量添加）
+    model.addConstrs(
+        (
+            Lspan[u_idx, m_idx, t_idx]
+            - bar_m * (2 - Y[u_idx, m_idx, t_idx] - Y[u2_idx, m_idx, t2_idx])
+            <= T[t2_idx] - T[t_idx]
+            for m_idx in range(num_m)
+            for u_idx in range(num_u)
+            for u2_idx in range(num_u)
+            for t_idx in range(num_t)
+            for t2_idx in range(num_t)
+            if T[t2_idx] > T[t_idx]
+        ),
+        name="no_overlap",
+    )
+
+    # 容量（开工时刻装箱）
+    for m_idx in range(num_m):
+        for t_idx in range(num_t):
+            model.addConstr(
+                gp.quicksum(
+                    data.v_i[i_idx] * X[i_idx, m_idx, t_idx]
+                    for i_idx in data.items_by_machine[m_idx]
+                )
+                <= data.q_m[m_idx],
                 name=f"capacity_{m_idx}_{t_idx}",
             )
 
-    # 时效限制：超过 deadline 的时段禁止投入该 item
-    if hasattr(data, "deadlines") and data.deadlines:
-        for i_idx in range(num_i):
-            dl = data.deadlines[i_idx]  # 1-based
-            for m_idx in range(num_m):
-                for t_idx in range(num_t):
-                    if (t_idx + 1) > dl:
-                        model.addConstr(X[i_idx, m_idx, t_idx] == 0, name=f"deadline_{i_idx}_{m_idx}_{t_idx}")
-
-    # WIP 物料守恒：进罐量 + 报废量 = 初始 WIP
+    # 单件去向：进罐或报废（仅专属/允许机台）
     for i_idx in range(num_i):
-        dl = data.deadlines[i_idx]
-        wip_in = gp.quicksum(
-            X[i_idx, m_idx, t_idx]
-            for m_idx in range(num_m)
-            for t_idx in range(num_t)
-            if (t_idx + 1) <= dl
+        e_i = data.earliest_starts[i_idx]
+        d_i = data.deadlines[i_idx]
+        model.addConstr(
+            gp.quicksum(
+                X[i_idx, m_idx, t_idx]
+                for m_idx in range(num_m)
+                if _item_on_machine(data, i_idx, m_idx)
+                for t_idx in range(num_t)
+                if e_i <= T[t_idx] <= d_i
+            )
+            + R[i_idx]
+            == 1,
+            name=f"fate_{i_idx}",
         )
-        model.addConstr(wip_in + R[i_idx] == data.w_i[i_idx], name=f"wip_balance_{i_idx}")
+
+    # 时间窗、专属机台：不可行开工点直接固定 X=0
+    t_max = T[-1]
+    for i_idx in range(num_i):
+        for m_idx in range(num_m):
+            for t_idx in range(num_t):
+                if not _item_on_machine(data, i_idx, m_idx) or not _item_start_feasible(
+                    data, i_idx, t_idx, t_max
+                ):
+                    X[i_idx, m_idx, t_idx].ub = 0.0
 
     vars_bundle = {
         "S_plus": S_plus,
@@ -146,7 +221,7 @@ def build_im_model(
         "R": R,
         "X": X,
         "Y": Y,
-        "Z": Z,
+        "L": Lspan,
     }
     return model, vars_bundle
 
@@ -159,7 +234,6 @@ def solve_im(
     method: str = "im_gurobi",
     verbose: bool = False,
 ) -> SolutionResult:
-    """求解 SIM 并返回结构化结果。"""
     start = time.perf_counter()
     model, vars_bundle = build_im_model(
         data,
@@ -201,12 +275,10 @@ def solve_im(
     num_i = len(data.cured_items)
 
     holding_cost = sum(
-        data.h_c[i] * vars_bundle["S_plus"][i, t].X
-        for i in range(num_i) for t in range(num_t)
+        data.h_c[i] * vars_bundle["S_plus"][i, t].X for i in range(num_i) for t in range(num_t)
     )
     backorder_cost = sum(
-        data.bc_j[i] * vars_bundle["S_minus"][i, t].X
-        for i in range(num_i) for t in range(num_t)
+        data.bc_j[i] * vars_bundle["S_minus"][i, t].X for i in range(num_i) for t in range(num_t)
     )
     production_cost = sum(
         data.p_cum[m_idx][u_idx] * vars_bundle["Y"][u_idx, m_idx, t_idx].X
@@ -225,18 +297,32 @@ def solve_im(
         data.cured_items[i]: {data.periods[t]: vars_bundle["S_minus"][i, t].X for t in range(num_t)}
         for i in range(num_i)
     }
-    assembly = {}   # 无装配
 
     packing = {
         data.machines[m_idx]: {
-            data.cured_items[i_idx]: {data.periods[t_idx]: vars_bundle["X"][i_idx, m_idx, t_idx].X for t_idx in range(num_t)}
+            data.cured_items[i_idx]: {
+                data.periods[t_idx]: vars_bundle["X"][i_idx, m_idx, t_idx].X for t_idx in range(num_t)
+            }
             for i_idx in range(num_i)
         }
         for m_idx in range(len(data.machines))
     }
     setup = {
         data.machines[m_idx]: {
-            data.configs[u_idx]: {data.periods[t_idx]: int(round(vars_bundle["Y"][u_idx, m_idx, t_idx].X)) for t_idx in range(num_t)}
+            data.configs[u_idx]: {
+                data.periods[t_idx]: int(round(vars_bundle["Y"][u_idx, m_idx, t_idx].X))
+                for t_idx in range(num_t)
+            }
+            for u_idx in range(len(data.configs))
+        }
+        for m_idx in range(len(data.machines))
+    }
+    span = {
+        data.machines[m_idx]: {
+            data.configs[u_idx]: {
+                data.periods[t_idx]: int(round(vars_bundle["L"][u_idx, m_idx, t_idx].X))
+                for t_idx in range(num_t)
+            }
             for u_idx in range(len(data.configs))
         }
         for m_idx in range(len(data.machines))
@@ -255,7 +341,7 @@ def solve_im(
         production_cost=production_cost,
         inventory=inventory,
         backorder=backorder,
-        assembly=assembly,
+        assembly={},
         packing=packing,
         setup=setup,
         extra={
@@ -265,6 +351,7 @@ def solve_im(
             "scrap_cost": scrap_cost,
             "scrap": scrap_qty,
             "total_scrap_qty": sum(scrap_qty.values()),
+            "span": span,
         },
     )
 
@@ -274,7 +361,6 @@ def solve_lim(
     time_limit: float | None = DEFAULT_LIM_TIME_LIMIT,
     verbose: bool = False,
 ) -> SolutionResult:
-    """求解线性松弛集成模型 LIM，提供下界 LBLIM。"""
     start = time.perf_counter()
     model, _ = build_im_model(data, time_limit=time_limit, linear_relaxation=True, verbose=verbose)
     model.optimize()
