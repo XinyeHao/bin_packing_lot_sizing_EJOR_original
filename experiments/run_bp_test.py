@@ -10,10 +10,7 @@ os.environ["GRB_CS_QUIET"] = "1"
 sys.stderr = open(os.devnull, "w")
 
 import configuration as cfg
-cfg.LEAD_TIME_CHOICES = (8, 9, 10)
-cfg.WINDOW_GENERATION_BY_SET["small_cg"] = {
-    "length_frac": (0.45, 0.65), "rel_frac": (0.03, 0.25), "min_length": 6
-}
+cfg.apply_bench_generation()
 
 from configuration import SetConfig
 from instance_generator.generator import generate_instance
@@ -21,7 +18,7 @@ from preprocessor.preprocess import preprocess
 from model_and_algo.branch_and_price import BranchAndPriceSolver, BranchAndPriceResult
 
 SEED = 101
-scfg = SetConfig("small_cg", 36, 5, 0, 50, 5)
+scfg = SetConfig("small_cg", 35, 5, 0, 50, 5)
 
 gc.collect(); time.sleep(1.0)
 print(f"Generating instance seed={SEED}...", flush=True)

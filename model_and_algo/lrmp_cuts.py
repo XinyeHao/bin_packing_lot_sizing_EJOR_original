@@ -14,38 +14,61 @@ if TYPE_CHECKING:
 FRAC_TOL = 1e-4
 
 DEFAULT_LRMP_CUTS: dict[str, bool | int | float] = {
+    # 仅保留 Deadline Cover（主问题中始终建模；此处控制是否收紧 RHS）
     "same_mt_setup": False,
     "wip_process_lb": False,
-    "tight_deadline": False,
+    "tight_deadline": True,
     "setup_pair_static": False,
     "setup_pair_separate": False,
     "setup_pair_sep_max": 40,
     "setup_pair_viol_tol": 1e-4,
 }
 
+# 与 DEFAULT 相同：只启用 Deadline Cover（tight RHS）
 LRMP_CUTS_STANDARD: dict[str, bool | int | float] = {
     "same_mt_setup": False,
-    "wip_process_lb": True,
+    "wip_process_lb": False,
     "tight_deadline": True,
     "setup_pair_static": False,
-    "setup_pair_separate": True,
+    "setup_pair_separate": False,
     "setup_pair_sep_max": 30,
+    "setup_pair_viol_tol": 1e-4,
+}
+
+LRMP_CUTS_STRONG: dict[str, bool | int | float] = {
+    "same_mt_setup": False,
+    "wip_process_lb": False,
+    "tight_deadline": True,
+    "setup_pair_static": False,
+    "setup_pair_separate": False,
+    "setup_pair_sep_max": 60,
     "setup_pair_viol_tol": 1e-4,
 }
 
 
 def merge_cut_options(opts: dict | str | None) -> dict:
+    """合并切平面开关。非 deadline 类割已停用：即使外部传入 True 也强制关掉。"""
     if opts is None:
-        return dict(DEFAULT_LRMP_CUTS)
-    if opts == "standard":
-        return dict(LRMP_CUTS_STANDARD)
-    out = dict(DEFAULT_LRMP_CUTS)
-    out.update(opts)
+        out = dict(DEFAULT_LRMP_CUTS)
+    elif opts == "standard":
+        out = dict(LRMP_CUTS_STANDARD)
+    elif opts == "strong":
+        out = dict(LRMP_CUTS_STRONG)
+    else:
+        out = dict(DEFAULT_LRMP_CUTS)
+        out.update(opts)
+    # 只保留 Deadline Cover（tight_deadline）；其余结构割一律关闭
+    out["same_mt_setup"] = False
+    out["wip_process_lb"] = False
+    out["setup_pair_static"] = False
+    out["setup_pair_separate"] = False
+    out["tight_deadline"] = True
     return out
 
 
 def cuts_enabled(opts: dict) -> bool:
-    keys = ("same_mt_setup", "wip_process_lb", "tight_deadline", "setup_pair_static", "setup_pair_separate")
+    # Deadline Cover 在主问题中始终添加；此处仅表示是否还有额外结构割
+    keys = ("same_mt_setup", "wip_process_lb", "setup_pair_static", "setup_pair_separate")
     return any(bool(opts.get(k)) for k in keys)
 
 

@@ -255,7 +255,7 @@ def solve_im(
     status = status_map.get(model.Status, f"status_{model.Status}")
 
     if model.SolCount == 0:
-        return SolutionResult(
+        result = SolutionResult(
             method=method,
             instance_name=data.raw.name,
             status=status,
@@ -264,6 +264,8 @@ def solve_im(
             mip_gap=None,
             runtime_sec=runtime,
         )
+        model.dispose()
+        return result
 
     obj = model.ObjVal
     lb = model.ObjBound
@@ -328,7 +330,7 @@ def solve_im(
         for m_idx in range(len(data.machines))
     }
 
-    return SolutionResult(
+    result = SolutionResult(
         method=method,
         instance_name=data.raw.name,
         status=status,
@@ -354,6 +356,8 @@ def solve_im(
             "span": span,
         },
     )
+    model.dispose()
+    return result
 
 
 def solve_lim(
@@ -366,7 +370,7 @@ def solve_lim(
     model.optimize()
     runtime = time.perf_counter() - start
     obj = model.ObjVal if model.Status == GRB.OPTIMAL else None
-    return SolutionResult(
+    result = SolutionResult(
         method="lim",
         instance_name=data.raw.name,
         status="optimal" if model.Status == GRB.OPTIMAL else f"status_{model.Status}",
@@ -375,3 +379,6 @@ def solve_lim(
         mip_gap=0.0,
         runtime_sec=runtime,
     )
+    model.dispose()
+    return result
+

@@ -242,6 +242,7 @@ def solve_subproblem_ebrp_heuristic(
     ctx: EBRPContext | None = None,
     alpha_flat=None,
     num_t_for_flat: int | None = None,
+    setup_cost_delta: list[list[float]] | None = None,
 ) -> SubproblemResult:
     """EBRP-H2 多策略贪心定价；墙钟不超过 time_limit（默认 1s）。"""
     num_t = len(data.periods)
@@ -265,6 +266,7 @@ def solve_subproblem_ebrp_heuristic(
         alpha_flat=alpha_flat,
         num_t=num_t_for_flat or num_t,
         deadline=deadline,
+        setup_cost_delta=setup_cost_delta,
     )
 
     forbidden: set[tuple[int, int]] = set()
@@ -274,6 +276,9 @@ def solve_subproblem_ebrp_heuristic(
             forbidden.add((u, t_idx))
         elif val == 1:
             forced.append((u, t_idx))
+            for other_u in range(num_u):
+                if other_u != u:
+                    forbidden.add((other_u, t_idx))
 
     p_cum = data.p_cum[machine_idx]
     batches_by_t = _index_batches_by_t(catalog, num_u, num_t, forbidden)

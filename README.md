@@ -6,6 +6,8 @@
 
 | 文件 | 说明 |
 |------|------|
+| [`USAGE.md`](USAGE.md) | **使用说明**（环境、IM/BPC、ML 分支、实验脚本） |
+| [`supplement_materials/test_instance.md`](supplement_materials/test_instance.md) | 基准设定与 IM / frac_sb / ML 结果 |
 | [`supplement_materials/problem_description_CN.md`](supplement_materials/problem_description_CN.md) | 问题定义、符号、IM 模型、算例字段 |
 | [`supplement_materials/technical_report_CN.md`](supplement_materials/technical_report_CN.md) | 技术报告（背景、建模） |
 | [`supplement_materials/project_description.md`](supplement_materials/project_description.md) | 项目结构与运行说明 |
@@ -35,6 +37,8 @@
 
 ## 运行示例
 
+更完整的说明见 [`USAGE.md`](USAGE.md)。
+
 ```bash
 # 生成演示算例
 python main.py --generate demo
@@ -44,6 +48,9 @@ python main.py --instance demo_small --method im_gurobi --time-limit 900
 
 # 列生成下界
 python main.py --instance demo_small --method cg
+
+# 分支定价（BPC）
+python main.py --instance demo_small --method bp --time-limit 600 --mip-gap 0.01
 
 # CGFO-II 启发式
 python main.py --instance demo_small --method cgfo_ii --time-limit 900

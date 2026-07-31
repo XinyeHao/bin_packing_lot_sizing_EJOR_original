@@ -1,0 +1,147 @@
+{
+  "note": "small/med from first bench; old-large(35,50)@1800 then new-large(40,55)@3600",
+  "scales_now": {
+    "small": [
+      30,
+      40
+    ],
+    "medium": [
+      35,
+      50
+    ],
+    "large": [
+      40,
+      55
+    ]
+  },
+  "rows": [
+    {
+      "scale": "small",
+      "seed": 693339,
+      "T": 25,
+      "I": 35,
+      "M": 5,
+      "U": 5,
+      "time_limit": 900.0,
+      "status": "optimal",
+      "ub": 15269.600000000002,
+      "lb": 15269.600000000002,
+      "gap_pct": 0.0,
+      "runtime_sec": 52.25,
+      "proved": true,
+      "window": {
+        "length_range": [
+          12,
+          16
+        ],
+        "rel_frac": [
+          0.1,
+          0.5
+        ]
+      },
+      "LT": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ]
+    },
+    {
+      "scale": "medium",
+      "seed": 693340,
+      "T": 30,
+      "I": 40,
+      "M": 5,
+      "U": 5,
+      "time_limit": 1800.0,
+      "status": "optimal",
+      "ub": 24556.3,
+      "lb": 24556.3,
+      "gap_pct": 0.0,
+      "runtime_sec": 581.54,
+      "proved": true,
+      "window": {
+        "length_range": [
+          12,
+          16
+        ],
+        "rel_frac": [
+          0.1,
+          0.5
+        ]
+      },
+      "LT": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ]
+    },
+    {
+      "scale": "medium_was_old_large",
+      "seed": 693341,
+      "T": 35,
+      "I": 50,
+      "time_limit": 1800.0,
+      "status": "time_limit",
+      "ub": 13996.6,
+      "lb": 13689.9,
+      "gap_pct": 2.1912,
+      "runtime_sec": 1803.17,
+      "proved": false,
+      "window": {
+        "length_range": [
+          12,
+          16
+        ],
+        "rel_frac": [
+          0.1,
+          0.5
+        ]
+      },
+      "LT": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ]
+    },
+    {
+      "scale": "large",
+      "seed": 902066,
+      "T": 40,
+      "I": 55,
+      "time_limit": 3600.0,
+      "status": "time_limit",
+      "ub": 34785.899999999994,
+      "lb": 30111.599999999977,
+      "gap_pct": 13.4373,
+      "runtime_sec": 3602.21,
+      "proved": false,
+      "window": {
+        "length_range": [
+          12,
+          16
+        ],
+        "rel_frac": [
+          0.1,
+          0.5
+        ]
+      },
+      "LT": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ]
+    }
+  ]
+}

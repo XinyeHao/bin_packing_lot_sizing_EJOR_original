@@ -1,0 +1,19 @@
+{
+  "scale": "medium",
+  "seed": 30101,
+  "T": 35,
+  "I": 50,
+  "M": 5,
+  "time_limit": 1800.0,
+  "mip_gap": 0.01,
+  "branch_strategy": "ml",
+  "status": "gap_limit",
+  "ub": 40226.3,
+  "lb": 39870.08411214951,
+  "gap_pct": 0.8855,
+  "runtime_sec": 37.51,
+  "nodes_explored": 11,
+  "nodes_pruned": 1,
+  "nodes_cg_failed": 0,
+  "proved": false
+}

@@ -1,0 +1,138 @@
+[
+  {
+    "name": "set_im_opt900_01",
+    "strategy": "ml",
+    "status": "optimal",
+    "proved": true,
+    "ub": 15032.5,
+    "lb": 15032.5,
+    "gap": 0.0,
+    "time": 461.4349113999633,
+    "nodes": 27,
+    "ref": {
+      "im": 68.0,
+      "bb": 778.0,
+      "bb_proved": true
+    }
+  },
+  {
+    "name": "set_im_opt900_02",
+    "strategy": "ml",
+    "status": "optimal",
+    "proved": true,
+    "ub": 14436.400000000001,
+    "lb": 14436.400000000001,
+    "gap": 0.0,
+    "time": 39.95862379996106,
+    "nodes": 3,
+    "ref": {
+      "im": 40.0
+    }
+  },
+  {
+    "name": "set_im_opt900_03",
+    "strategy": "ml",
+    "status": "optimal",
+    "proved": true,
+    "ub": 17165.3,
+    "lb": 17165.3,
+    "gap": 0.0,
+    "time": 795.3939678000752,
+    "nodes": 49,
+    "ref": {
+      "im": 63.4,
+      "bb": 907.5,
+      "bb_proved": false
+    }
+  },
+  {
+    "name": "set_im_opt900_04",
+    "strategy": "ml",
+    "status": "optimal",
+    "proved": true,
+    "ub": 13460.000000000002,
+    "lb": 13460.000000000002,
+    "gap": 0.0,
+    "time": 336.7953615000006,
+    "nodes": 27,
+    "ref": {
+      "im": 30.2,
+      "bb": 706.9,
+      "bb_proved": true
+    }
+  },
+  {
+    "name": "set_im_opt900_05",
+    "strategy": "ml",
+    "status": "time_limit",
+    "proved": false,
+    "ub": 18695.8,
+    "lb": 18320.20909090909,
+    "gap": 2.0089587452310576,
+    "time": 906.8417408000678,
+    "nodes": 35,
+    "ref": {
+      "im": 252.0
+    }
+  },
+  {
+    "name": "set_im_med_01",
+    "strategy": "ml",
+    "status": "time_limit",
+    "proved": false,
+    "ub": 19825.3,
+    "lb": 19051.800000000003,
+    "gap": 3.9015803039550288,
+    "time": 1809.1944277000148,
+    "nodes": 51,
+    "ref": null
+  },
+  {
+    "name": "set_im_med_02",
+    "strategy": "ml",
+    "status": "time_limit",
+    "proved": false,
+    "ub": 21663.0,
+    "lb": 21179.420353164558,
+    "gap": 2.232283833427697,
+    "time": 1808.057808500016,
+    "nodes": 47,
+    "ref": null
+  },
+  {
+    "name": "set_im_med_03",
+    "strategy": "ml",
+    "status": "time_limit",
+    "proved": false,
+    "ub": 19482.899999999998,
+    "lb": 19112.183333333323,
+    "gap": 1.9027797025426114,
+    "time": 1807.2451609999407,
+    "nodes": 41,
+    "ref": null
+  },
+  {
+    "name": "set_im_med_04",
+    "strategy": "ml",
+    "status": "time_limit",
+    "proved": false,
+    "ub": 19187.6,
+    "lb": 18546.59215686274,
+    "gap": 3.3407400776400404,
+    "time": 1806.4453668000642,
+    "nodes": 43,
+    "ref": null
+  },
+  {
+    "name": "set_im_med_05",
+    "strategy": "ml",
+    "status": "time_limit",
+    "proved": false,
+    "ub": 15929.099999999997,
+    "lb": 15648.673218279568,
+    "gap": 1.7604684616232502,
+    "time": 1807.9681997000007,
+    "nodes": 68,
+    "ref": null
+  }
+]

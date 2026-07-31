@@ -1,0 +1,209 @@
+{
+  "note": "IM mip_gap=1%: 5 medium (30101\u201330501) + 5 large (40101\u201340501)",
+  "mip_gap": 0.01,
+  "memory": "one subprocess per instance + gp.disposeDefaultEnv + os._exit",
+  "jobs": [
+    {
+      "scale": "medium",
+      "seed": 30101,
+      "limit": 1800.0
+    },
+    {
+      "scale": "medium",
+      "seed": 30201,
+      "limit": 1800.0
+    },
+    {
+      "scale": "medium",
+      "seed": 30301,
+      "limit": 1800.0
+    },
+    {
+      "scale": "medium",
+      "seed": 30401,
+      "limit": 1800.0
+    },
+    {
+      "scale": "medium",
+      "seed": 30501,
+      "limit": 1800.0
+    },
+    {
+      "scale": "large",
+      "seed": 40101,
+      "limit": 3600.0
+    },
+    {
+      "scale": "large",
+      "seed": 40201,
+      "limit": 3600.0
+    },
+    {
+      "scale": "large",
+      "seed": 40301,
+      "limit": 3600.0
+    },
+    {
+      "scale": "large",
+      "seed": 40401,
+      "limit": 3600.0
+    },
+    {
+      "scale": "large",
+      "seed": 40501,
+      "limit": 3600.0
+    }
+  ],
+  "rows": [
+    {
+      "scale": "medium",
+      "seed": 30101,
+      "T": 35,
+      "I": 50,
+      "M": 5,
+      "time_limit": 1800.0,
+      "mip_gap": 0.01,
+      "status": "time_limit",
+      "ub": 40226.3,
+      "lb": 34763.899999999994,
+      "gap_pct": 13.5792,
+      "runtime_sec": 1801.3,
+      "proved": false
+    },
+    {
+      "scale": "medium",
+      "seed": 30201,
+      "T": 35,
+      "I": 50,
+      "M": 5,
+      "time_limit": 1800.0,
+      "mip_gap": 0.01,
+      "status": "time_limit",
+      "ub": 32784.299999999996,
+      "lb": 30409.6,
+      "gap_pct": 7.2434,
+      "runtime_sec": 1801.26,
+      "proved": false
+    },
+    {
+      "scale": "medium",
+      "seed": 30301,
+      "T": 35,
+      "I": 50,
+      "M": 5,
+      "time_limit": 1800.0,
+      "mip_gap": 0.01,
+      "status": "time_limit",
+      "ub": 34145.3,
+      "lb": 32321.601254720088,
+      "gap_pct": 5.341,
+      "runtime_sec": 1801.79,
+      "proved": false
+    },
+    {
+      "scale": "medium",
+      "seed": 30401,
+      "T": 35,
+      "I": 50,
+      "M": 5,
+      "time_limit": 1800.0,
+      "mip_gap": 0.01,
+      "status": "time_limit",
+      "ub": 25920.600000000002,
+      "lb": 23982.899999999998,
+      "gap_pct": 7.4755,
+      "runtime_sec": 1801.4,
+      "proved": false
+    },
+    {
+      "scale": "medium",
+      "seed": 30501,
+      "T": 35,
+      "I": 50,
+      "M": 5,
+      "time_limit": 1800.0,
+      "mip_gap": 0.01,
+      "status": "time_limit",
+      "ub": 33217.8,
+      "lb": 30745.800000000003,
+      "gap_pct": 7.4418,
+      "runtime_sec": 1801.57,
+      "proved": false
+    },
+    {
+      "scale": "large",
+      "seed": 40101,
+      "T": 40,
+      "I": 55,
+      "M": 5,
+      "time_limit": 3600.0,
+      "mip_gap": 0.01,
+      "status": "time_limit",
+      "ub": 26058.5,
+      "lb": 22272.4,
+      "gap_pct": 14.5292,
+      "runtime_sec": 3602.35,
+      "proved": false
+    },
+    {
+      "scale": "large",
+      "seed": 40201,
+      "T": 40,
+      "I": 55,
+      "M": 5,
+      "time_limit": 3600.0,
+      "mip_gap": 0.01,
+      "status": "time_limit",
+      "ub": 38244.399999999994,
+      "lb": 34094.0,
+      "gap_pct": 10.8523,
+      "runtime_sec": 3602.62,
+      "proved": false
+    },
+    {
+      "scale": "large",
+      "seed": 40301,
+      "T": 40,
+      "I": 55,
+      "M": 5,
+      "time_limit": 3600.0,
+      "mip_gap": 0.01,
+      "status": "time_limit",
+      "ub": 27897.5,
+      "lb": 23594.19999999999,
+      "gap_pct": 15.4254,
+      "runtime_sec": 3601.93,
+      "proved": false
+    },
+    {
+      "scale": "large",
+      "seed": 40401,
+      "T": 40,
+      "I": 55,
+      "M": 5,
+      "time_limit": 3600.0,
+      "mip_gap": 0.01,
+      "status": "time_limit",
+      "ub": 23639.600000000002,
+      "lb": 21682.999999999996,
+      "gap_pct": 8.2768,
+      "runtime_sec": 3601.84,
+      "proved": false
+    },
+    {
+      "scale": "large",
+      "seed": 40501,
+      "T": 40,
+      "I": 55,
+      "M": 5,
+      "time_limit": 3600.0,
+      "mip_gap": 0.01,
+      "status": "time_limit",
+      "ub": 34643.6,
+      "lb": 32100.69999999999,
+      "gap_pct": 7.3402,
+      "runtime_sec": 3602.42,
+      "proved": false
+    }
+  ]
+}

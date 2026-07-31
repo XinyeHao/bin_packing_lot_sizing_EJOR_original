@@ -1,0 +1,79 @@
+{
+  "scale": "medium",
+  "no_im": true,
+  "time_limit": 1800.0,
+  "branch_strategy": "ml",
+  "ml_sb_refine_k": 5,
+  "rows": [
+    {
+      "seed": 8201,
+      "T": 30,
+      "I": 40,
+      "status": "optimal",
+      "ub": 27266.3,
+      "lb": 27266.3,
+      "gap_pct": 0.0,
+      "runtime_sec": 1.0,
+      "nodes_explored": 1,
+      "nodes_pruned": 1,
+      "proved": true,
+      "ml_sb_refine_k": 5
+    },
+    {
+      "seed": 8301,
+      "T": 30,
+      "I": 40,
+      "status": "optimal",
+      "ub": 32233.500000000004,
+      "lb": 32233.500000000004,
+      "gap_pct": 0.0,
+      "runtime_sec": 0.95,
+      "nodes_explored": 1,
+      "nodes_pruned": 1,
+      "proved": true,
+      "ml_sb_refine_k": 5
+    },
+    {
+      "seed": 8401,
+      "T": 30,
+      "I": 40,
+      "status": "optimal",
+      "ub": 30394.6,
+      "lb": 30394.6,
+      "gap_pct": 0.0,
+      "runtime_sec": 8.16,
+      "nodes_explored": 9,
+      "nodes_pruned": 5,
+      "proved": true,
+      "ml_sb_refine_k": 5
+    },
+    {
+      "seed": 8501,
+      "T": 30,
+      "I": 40,
+      "status": "optimal",
+      "ub": 37586.5,
+      "lb": 37586.5,
+      "gap_pct": 0.0,
+      "runtime_sec": 0.91,
+      "nodes_explored": 1,
+      "nodes_pruned": 1,
+      "proved": true,
+      "ml_sb_refine_k": 5
+    },
+    {
+      "seed": 8601,
+      "T": 30,
+      "I": 40,
+      "status": "optimal",
+      "ub": 30206.100000000002,
+      "lb": 30206.100000000002,
+      "gap_pct": 0.0,
+      "runtime_sec": 2.69,
+      "nodes_explored": 5,
+      "nodes_pruned": 3,
+      "proved": true,
+      "ml_sb_refine_k": 5
+    }
+  ]
+}

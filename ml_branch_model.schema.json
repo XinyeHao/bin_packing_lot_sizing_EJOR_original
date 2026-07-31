@@ -1,0 +1,25 @@
+{
+  "version": 6,
+  "features": [
+    "frac",
+    "is_y",
+    "is_wip",
+    "is_scrap",
+    "dual_share",
+    "dens_rel",
+    "prox_pen",
+    "dual_rank",
+    "frac_rank"
+  ],
+  "objective": "lambdarank",
+  "label": "y_min",
+  "online_refine_k": 5,
+  "train_focus": "NDCG@5 / Recall@5 for coarse Top-N",
+  "split": {
+    "train": 447,
+    "val": 95,
+    "test": 97
+  },
+  "best_config": "ndcg5_deep",
+  "data_dir": "ml_train_data_v7_w1216"
+}

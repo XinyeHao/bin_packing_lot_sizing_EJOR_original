@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from common.data_models import ProcessedInstance, ScheduleColumn
 from configuration import DEFAULT_BP_LB_STALL_EPS, DEFAULT_BP_Y0_DEPTH_BUDGET
@@ -84,6 +86,28 @@ def copy_column_pool(columns: dict[str, list[ScheduleColumn]]) -> dict[str, list
     return {m: list(cols) for m, cols in columns.items()}
 
 
+def prune_column_pool(
+    columns: dict[str, list[ScheduleColumn]],
+    q_vars: dict[str, list],
+    tol: float = 1e-6,
+) -> dict[str, list[ScheduleColumn]]:
+    """裁剪列池：只保留权重 > tol 的列，减少子节点主问题规模。"""
+    pruned: dict[str, list[ScheduleColumn]] = {}
+    for m_idx, machine_cols in columns.items():
+        q_list = q_vars.get(m_idx, [])
+        keep: list[ScheduleColumn] = []
+        for cidx, col in enumerate(machine_cols):
+            try:
+                w = q_list[cidx].X
+            except Exception:
+                w = 0.0
+            if w > tol:
+                keep.append(col)
+        # 如果裁剪后为空，保留原列表（至少要有列才能做 LP）
+        pruned[m_idx] = keep if keep else list(machine_cols)
+    return pruned
+
+
 def machine_fixed_y_feasible(
     data: ProcessedInstance,
     machine_idx: int,
@@ -126,6 +150,15 @@ def wip_fix_feasible(data: ProcessedInstance, fixed_wip: dict[int, WipFix]) -> b
             return False
         if sense == "ge" and bound > w:
             return False
+        # 时间窗约束：每个 item 最多在 ceil(window_len / lead_time) 个批次中出现
+        if sense == "ge" and bound > 0:
+            e_i = data.earliest_starts[i_idx]
+            d_i = data.deadlines[i_idx]
+            l_i = max(1, int(data.l_ti[i_idx]))
+            window_len = d_i - e_i + 1
+            max_batches = int(math.ceil(window_len / float(l_i)))
+            if bound > max_batches:
+                return False
     return True
 
 
@@ -134,9 +167,22 @@ def _frac_part(v: float) -> float:
 
 
 def get_rho_duals(cg: ColumnGenerationSolver) -> list[float]:
+    """WIP dual magnitudes; safe if LP has no duals after cuts / status change."""
+    n = len(cg.data.cured_items)
     if cg._artifacts is None:
-        return [0.0] * len(cg.data.cured_items)
-    return [abs(cg._artifacts["wip_balance"][i].Pi) for i in range(len(cg.data.cured_items))]
+        return [0.0] * n
+    if hasattr(cg, "ensure_master_lp"):
+        cg.ensure_master_lp()
+    wip = cg._artifacts.get("wip_balance")
+    if not wip:
+        return [0.0] * n
+    out: list[float] = []
+    for i in range(n):
+        try:
+            out.append(abs(float(wip[i].Pi)))
+        except Exception:
+            out.append(0.0)
+    return out
 
 
 def _has_fractional_y_above_half(implied_y: dict[SetupFix, float]) -> bool:
@@ -295,7 +341,7 @@ def pick_branch_old_hybrid(
 
 
 class BranchPolicy:
-    """三层分支策略：Y=0 深搜 / WIP+scrap / lazy Y=1 & R=0。"""
+    """三层分支策略：Y=0 深搜 / WIP+scrap / lazy Y=1 & R=0；可选纯 ML 排序。"""
 
     def __init__(
         self,
@@ -309,6 +355,7 @@ class BranchPolicy:
         self.y0_depth_budget = y0_depth_budget
         self.lb_stall_eps = lb_stall_eps
         self._last_lb: float | None = None
+        self._ml_selector: Any = None
 
     def note_lb(self, lb: float) -> None:
         self._last_lb = lb
@@ -318,7 +365,15 @@ class BranchPolicy:
             return False
         return current_lb - self._last_lb < self.lb_stall_eps
 
-    def pick(
+    def _get_ml_selector(self) -> Any:
+        if self._ml_selector is None:
+            from configuration import ML_BRANCH_MODEL_PATH
+            from model_and_algo.ml_branch_selector import MLBranchSelector
+
+            self._ml_selector = MLBranchSelector(model_path=ML_BRANCH_MODEL_PATH)
+        return self._ml_selector
+
+    def _pick_heuristic(
         self,
         depth: int,
         cg: ColumnGenerationSolver,
@@ -339,7 +394,6 @@ class BranchPolicy:
                 self.data, implied, r_vals, fixed_y, fixed_scrap
             )
 
-        # new_policy
         if _has_fractional_y_above_half(implied) and depth < self.y0_depth_budget:
             dec = pick_setup_y0_branch(self.data, implied, fixed_y, rhos)
             if dec is not None:
@@ -357,6 +411,54 @@ class BranchPolicy:
         if _has_fractional_y(implied):
             return pick_setup_y0_branch(self.data, implied, fixed_y, rhos)
         return None
+
+    def pick(
+        self,
+        depth: int,
+        cg: ColumnGenerationSolver,
+        fixed_y: dict[SetupFix, int],
+        fixed_scrap: dict[int, int],
+        fixed_wip: dict[int, WipFix],
+    ) -> BranchDecision | None:
+        if self.strategy == "ml":
+            try:
+                # Cuts / RMP-IP can leave the master without duals; repair first.
+                if hasattr(cg, "ensure_master_lp"):
+                    cg.ensure_master_lp()
+                from model_and_algo.ml_branch_selector import pick_ml_decision
+
+                sel = self._get_ml_selector()
+                if sel.ready:
+                    dec = pick_ml_decision(
+                        self.data, cg, fixed_y, fixed_scrap, fixed_wip, sel
+                    )
+                    if dec is not None:
+                        return dec
+            except Exception as exc:
+                print(f"    [ml-branch] fallback to heuristic ({exc})", flush=True)
+            # fallback: same layering as best_bound
+            return self._pick_heuristic(
+                depth, cg, fixed_y, fixed_scrap, fixed_wip
+            )
+
+        if self.strategy == "frac_sb":
+            try:
+                if hasattr(cg, "ensure_master_lp"):
+                    cg.ensure_master_lp()
+                from model_and_algo.ml_branch_selector import pick_frac_decision
+
+                dec = pick_frac_decision(
+                    self.data, cg, fixed_y, fixed_scrap, fixed_wip
+                )
+                if dec is not None:
+                    return dec
+            except Exception as exc:
+                print(f"    [frac-sb] fallback to heuristic ({exc})", flush=True)
+            return self._pick_heuristic(
+                depth, cg, fixed_y, fixed_scrap, fixed_wip
+            )
+
+        return self._pick_heuristic(depth, cg, fixed_y, fixed_scrap, fixed_wip)
 
 
 def machine_needs_setup_seed(

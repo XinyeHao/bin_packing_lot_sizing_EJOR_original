@@ -1,4 +1,4 @@
-"""Test 3 instances at T=36/I=50/M=5: IM (900s) vs CG+EBRP (900s)."""
+"""Test 3 instances at T=35/I=50/M=5: IM (900s) vs CG+EBRP (900s)."""
 import sys, os, gc, time
 from pathlib import Path
 
@@ -10,10 +10,7 @@ os.environ['GRB_CS_QUIET'] = '1'
 
 def main():
     import configuration as cfg
-    cfg.LEAD_TIME_CHOICES = (8, 9, 10)
-    cfg.WINDOW_GENERATION_BY_SET['small_cg'] = {
-        'length_frac': (0.45, 0.65), 'rel_frac': (0.03, 0.25), 'min_length': 6
-    }
+    cfg.apply_bench_generation()
 
     from configuration import SetConfig
     from instance_generator.generator import generate_instance
@@ -21,7 +18,7 @@ def main():
     from model_and_algo.column_generation import solve_column_generation
     from model_and_algo.im_model import solve_im
 
-    scfg = SetConfig('small_cg', 36, 5, 0, 50, 5)
+    scfg = SetConfig('small_cg', 35, 5, 0, 50, 5)
     seeds = [601, 602, 603]
     TIME_LIMIT = 900.0
 

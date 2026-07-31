@@ -20,6 +20,32 @@ instances/*
 result/*
 !result/.gitkeep
 
+# ML 训练原始数据（体积大；模型文件单独跟踪）
+ml_train_data/
+ml_train_data_*/
+!ml_branch_model.txt
+!ml_branch_model.schema.json
+
+# 备份 / 中间模型
+ml_branch_model_*.txt
+ml_branch_model_*.schema.json
+!ml_branch_model.txt
+!ml_branch_model.schema.json
+
+# 实验临时目录与运行日志
+supplement_materials/_*/
+supplement_materials/**/*.log
+supplement_materials/**/*_tmp/
+*.log
+
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# partial per-seed dumps
+supplement_materials/_bpc_ml_large_*.json
+
+
+# reference PDFs (not project code)
+supplement_materials/learning_to_branch/
+

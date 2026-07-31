@@ -95,6 +95,7 @@ def _solve_pricing_subproblem(
     ebrp_contexts=None,
     ebrp_progress_sec: float = 0.0,
     skip_cross_check: bool = False,
+    setup_cost_delta: list[list[float]] | None = None,
 ) -> SubproblemResult:
     """统一定价入口：ebrp | ebrp_heuristic | im_gurobi（规范 §3.3）。"""
     mode = _resolve_pricing_mode(data, pricing_mode, ebrp_force=ebrp_force)
@@ -107,6 +108,7 @@ def _solve_pricing_subproblem(
             rho=rho,
             time_limit=im_pricing_time_limit,
             fixed_y=fixed_y,
+            setup_cost_delta=setup_cost_delta,
         )
     ctx = ebrp_contexts[machine_idx] if ebrp_contexts is not None else None
     if mode == "ebrp_heuristic":
@@ -122,6 +124,7 @@ def _solve_pricing_subproblem(
             ctx=ctx,
             alpha_flat=alpha_flat,
             num_t_for_flat=num_t_for_flat,
+            setup_cost_delta=setup_cost_delta,
         )
     return solve_subproblem_ebrp(
         data,
@@ -136,6 +139,7 @@ def _solve_pricing_subproblem(
         num_t_for_flat=num_t_for_flat,
         progress_interval_sec=ebrp_progress_sec,
         skip_cross_check=skip_cross_check,
+        setup_cost_delta=setup_cost_delta,
     )
 
 
@@ -226,6 +230,7 @@ def _price_machine_in_worker(
         alpha, rho = _nested_alpha_from_shm()
     else:
         alpha, rho = None, list(rho_arr)
+    setup_deltas = state.get("setup_cost_deltas") or {}
     sp = _solve_pricing_subproblem(
         data,
         m_idx,
@@ -241,6 +246,7 @@ def _price_machine_in_worker(
         fixed_y=machine_fixes or None,
         ebrp_contexts=state.get("ebrp_contexts"),
         skip_cross_check=state.get("skip_cross_check", False),
+        setup_cost_delta=setup_deltas.get(m_idx),
     )
     if rc_arr is not None:
         rc_arr[m_idx] = sp.reduced_cost
@@ -292,6 +298,7 @@ def _execute_pricing_job(
         fixed_y=machine_fixes or None,
         ebrp_contexts=state.get("ebrp_contexts"),
         skip_cross_check=state.get("skip_cross_check", False),
+        setup_cost_delta=(state.get("setup_cost_deltas") or {}).get(m_idx),
     )
     rc_arr = state.get("rc_arr")
     if rc_arr is not None:
@@ -317,6 +324,7 @@ class ColumnGenerationSolver:
         time_limit: float | None = None,
         fixed_y: dict[SetupFix, int] | None = None,
         fixed_wip: dict[int, WipFix] | None = None,
+        fixed_scrap: dict[int, int] | None = None,
         inherited_columns: dict[str, list[ScheduleColumn]] | None = None,
         lrmp_cuts: dict | str | None = None,
         verbose: bool = False,
@@ -346,6 +354,7 @@ class ColumnGenerationSolver:
         self.time_limit = time_limit
         self.fixed_y: dict[SetupFix, int] = dict(fixed_y or {})
         self.fixed_wip: dict[int, WipFix] = dict(fixed_wip or {})
+        self.fixed_scrap: dict[int, int] = dict(fixed_scrap or {})
         self.inherited_columns = inherited_columns
         self.lrmp_cut_opts = merge_cut_options(lrmp_cuts)
         self.verbose = verbose
@@ -392,6 +401,8 @@ class ColumnGenerationSolver:
         self.stop_reason: str | None = None
         self.iteration_times: list[float] = []
         self.iteration_time_detail: list[dict[str, float]] = []
+        self.incumbent: float | None = None  # for early termination in B&P nodes
+        self._setup_cost_deltas: dict[int, list[list[float]]] = {}
 
     def _log(self, message: str) -> None:
         if self.verbose:
@@ -435,7 +446,95 @@ class ColumnGenerationSolver:
             ebrp_contexts=self._ebrp_contexts,
             ebrp_progress_sec=self._ebrp_progress_sec,
             skip_cross_check=self.skip_cross_check,
+            setup_cost_delta=self._setup_cost_deltas.get(m_idx),
         )
+
+    def _fold_deadline_duals_into_alpha(self, alpha: list[list[float]]) -> list[list[float]]:
+        """把 deadline cover 割对偶 π_τ 折入 α：RC -= π·A  ⟺  α'[i][t] = α[i][t] + π_τ（arrival≤τ）。"""
+        if not self.deadline_cuts:
+            return alpha
+        adj = [row[:] for row in alpha]
+        periods = self.data.periods
+        for tau, info in self.deadline_cuts.items():
+            try:
+                pi = info["constr"].Pi
+            except Exception:
+                continue
+            if abs(pi) < 1e-12:
+                continue
+            for i_idx in info.get("I") or []:
+                row = adj[i_idx]
+                for t_idx, period in enumerate(periods):
+                    if period <= tau:
+                        row[t_idx] += pi
+        return adj
+
+    def _fold_wip_branch_duals_into_rho(self, rho: list[float]) -> list[float]:
+        """WIP 分支 Σ q·wip_input ≷ bound 的对偶折入 ρ：RC -= π·x_i ⟺ ρ'[i] = ρ[i] + π。"""
+        rows = (self._artifacts or {}).get("wip_branch_rows") or []
+        if not rows:
+            return rho
+        adj = list(rho)
+        for constr, i_idx, _sense, _bound in rows:
+            try:
+                pi = constr.Pi
+            except Exception:
+                continue
+            if abs(pi) < 1e-12:
+                continue
+            adj[i_idx] += pi
+        return adj
+
+    def _refresh_setup_cut_cost_deltas(self) -> None:
+        """setup_pair / same_mt / Y-branch 对偶 → setup 额外成本 σ[u][t] = -Σ π。"""
+        self._setup_cost_deltas = {}
+        num_u = len(self.data.configs)
+        num_t = len(self.data.periods)
+        num_m = len(self.data.machines)
+        sigmas: list[list[list[float]] | None] = [None] * num_m
+
+        def _sigma(m_idx: int) -> list[list[float]]:
+            if sigmas[m_idx] is None:
+                sigmas[m_idx] = [[0.0] * num_t for _ in range(num_u)]
+            return sigmas[m_idx]
+
+        for info in self.setup_pair_cuts:
+            try:
+                pi = info["constr"].Pi
+            except Exception:
+                continue
+            if abs(pi) < 1e-12:
+                continue
+            m_idx = info["m_idx"]
+            u1, t1 = info["a"]
+            u2, t2 = info["b"]
+            s = _sigma(m_idx)
+            s[u1][t1] -= pi
+            s[u2][t2] -= pi
+
+        for info in self.same_mt_cuts:
+            try:
+                pi = info["constr"].Pi
+            except Exception:
+                continue
+            if abs(pi) < 1e-12:
+                continue
+            m_idx = info["m_idx"]
+            t_idx = info["t_idx"]
+            s = _sigma(m_idx)
+            for u_idx in range(num_u):
+                s[u_idx][t_idx] -= pi
+
+        for constr, u_idx, m_idx, t_idx, _val in (self._artifacts or {}).get("branch_rows") or []:
+            try:
+                pi = constr.Pi
+            except Exception:
+                continue
+            if abs(pi) < 1e-12:
+                continue
+            _sigma(m_idx)[u_idx][t_idx] -= pi
+
+        self._setup_cost_deltas = {m: s for m, s in enumerate(sigmas) if s is not None}
 
     def _pricing_label(self, use_gurobi: bool = False) -> str:
         mode = _resolve_pricing_mode(self.data, self.pricing_mode, ebrp_force=self.ebrp_force)
@@ -453,9 +552,21 @@ class ColumnGenerationSolver:
         self.setup_pair_cuts = []
         self.deadline_cuts = {}
 
+    def _rebuild_column_sigs(self) -> None:
+        self._column_sigs = {m: set() for m in self.data.machines}
+        for machine, cols in self.columns.items():
+            for col in cols:
+                self._column_sigs[machine].add(column_fingerprint(col))
+
     def _add_column(self, machine: str, column: ScheduleColumn) -> None:
+        fp = column_fingerprint(column)
+        if fp in self._column_sigs[machine]:
+            raise RuntimeError(
+                f"duplicate column add for machine={machine}: fingerprint already in pool "
+                f"(pool_size={len(self.columns.get(machine, []))})"
+            )
         self.columns[machine].append(column)
-        self._column_sigs[machine].add(column_fingerprint(column))
+        self._column_sigs[machine].add(fp)
 
     def _column_seen(self, machine: str, column: ScheduleColumn) -> bool:
         return column_fingerprint(column) in self._column_sigs[machine]
@@ -649,6 +760,7 @@ class ColumnGenerationSolver:
             "num_i": len(self.data.cured_items),
             "num_t": len(self.data.periods),
             "skip_cross_check": self.skip_cross_check,
+            "setup_cost_deltas": self._setup_cost_deltas,
         }
 
     def _price_machines_inprocess(
@@ -801,12 +913,13 @@ class ColumnGenerationSolver:
         r_vars: gp.Var | dict,
     ) -> tuple[
         list[tuple[gp.Constr, int, int, int, int]],
-        list[tuple[gp.Constr, int, int]],
         list[tuple[gp.Constr, int, str, int]],
+        list[tuple[gp.Constr, int, int]],
     ]:
-        """对 fixed_y / fixed_wip 添加分支约束。"""
+        """对 fixed_y / fixed_wip / fixed_scrap 添加分支约束。"""
         branch_rows: list[tuple[gp.Constr, int, int, int, int]] = []
         wip_rows: list[tuple[gp.Constr, int, str, int]] = []
+        scrap_rows: list[tuple[gp.Constr, int, int]] = []
         data = self.data
         for (u_idx, m_idx, t_idx), val in self.fixed_y.items():
             machine = data.machines[m_idx]
@@ -823,12 +936,38 @@ class ColumnGenerationSolver:
             else:
                 constr = model.addConstr(expr >= bound, name=f"branch_wip_ge_{i_idx}_{bound}")
             wip_rows.append((constr, i_idx, sense, bound))
-        return branch_rows, wip_rows
+        for i_idx, val in self.fixed_scrap.items():
+            if val > 0:
+                constr = model.addConstr(r_vars[i_idx] >= val, name=f"branch_scrap_{i_idx}")
+            else:
+                # R=0 侧：必须强制加工全部 WIP（R + W = w_i ⇒ W = w_i）
+                constr = model.addConstr(r_vars[i_idx] <= 0, name=f"branch_scrap0_{i_idx}")
+            scrap_rows.append((constr, i_idx, val))
+        return branch_rows, wip_rows, scrap_rows
+
+    def _covering_items(self) -> list[int]:
+        """需要列池覆盖加工量的物料：R=0（W=w_i）或 W≥bound。"""
+        items: list[int] = []
+        for i_idx, val in self.fixed_scrap.items():
+            if val == 0:
+                items.append(i_idx)
+        for i_idx, (sense, bound) in self.fixed_wip.items():
+            if sense == "ge" and bound > 0:
+                items.append(i_idx)
+        return sorted(set(items))
+
+    def _needs_feasibility_seed(self) -> bool:
+        if self._covering_items():
+            return True
+        if any(v == 1 for v in self.fixed_y.values()):
+            return True
+        return bool(self.fixed_wip)
 
     def initialize_columns(self, executor: ProcessPoolExecutor | None = None) -> None:
         data = self.data
         if self.inherited_columns:
             self.columns = filter_columns(self.inherited_columns, data, self.fixed_y)
+            self._rebuild_column_sigs()
             max_id = max(
                 (col.column_id for cols in self.columns.values() for col in cols),
                 default=-1,
@@ -836,6 +975,7 @@ class ColumnGenerationSolver:
             self._next_col_id = max_id + 1
         else:
             self.columns = {m: [] for m in data.machines}
+            self._rebuild_column_sigs()
             self._next_col_id = 0
 
         for m_idx, machine in enumerate(data.machines):
@@ -845,7 +985,8 @@ class ColumnGenerationSolver:
 
         if self.inherited_columns:
             self._seed_forced_setup_columns()
-            if self.fixed_wip:
+            if self._needs_feasibility_seed():
+                self._seed_covering_columns(executor)
                 self._seed_branch_columns(executor)
             return
 
@@ -878,19 +1019,41 @@ class ColumnGenerationSolver:
                     continue
                 machine = data.machines[m_idx]
                 col = subproblem_to_column(data, m_idx, self._next_col_id, sp)
+                if not column_compatible(col, m_idx, data, self.fixed_y):
+                    continue
+                if self._column_seen(machine, col):
+                    continue  # init seed may rediscover; CG loop forbids duplicates
                 self._next_col_id += 1
-                if column_compatible(col, m_idx, data, self.fixed_y):
-                    self._add_column(machine, col)
+                self._add_column(machine, col)
         else:
             self._log("初始列: 仅空列（典型 CG 多轮起点）")
         self._log(f"初始列完成: 共 {self._total_columns()} 列")
+
+    def _try_add_priced_column(self, m_idx: int, sp: SubproblemResult | None) -> bool:
+        if sp is None or not math.isfinite(getattr(sp, "reduced_cost", float("inf"))):
+            return False
+        data = self.data
+        machine = data.machines[m_idx]
+        col = subproblem_to_column(data, m_idx, self._next_col_id, sp)
+        if not column_compatible(col, m_idx, data, self.fixed_y):
+            return False
+        if self._column_seen(machine, col):
+            return False
+        self._next_col_id += 1
+        self._add_column(machine, col)
+        return True
 
     def _seed_forced_setup_columns(self) -> None:
         """Y=1 分支后若列池缺少 forced setup 列，用规范定价生成可行列以启动 CG。"""
         data = self.data
         num_t = len(data.periods)
-        alpha = [[0.0] * num_t for _ in data.cured_items]
-        rho = [0.0] * len(data.cured_items)
+        num_i = len(data.cured_items)
+        covering = self._covering_items()
+        # 大 ρ 鼓励在 forced setup 上同时覆盖 R=0 / W≥ 物料
+        rho = [0.0] * num_i
+        for i_idx in covering:
+            rho[i_idx] = 1.0e6
+        alpha = [[0.0] * num_t for _ in range(num_i)]
         for m_idx, machine in enumerate(data.machines):
             cols = self.columns.get(machine, [])
             fixes = machine_needs_setup_seed(data, m_idx, cols, self.fixed_y)
@@ -905,13 +1068,52 @@ class ColumnGenerationSolver:
             )
             if not sp.y or not math.isfinite(sp.reduced_cost):
                 continue
-            col = subproblem_to_column(data, m_idx, self._next_col_id, sp)
-            self._next_col_id += 1
-            if column_compatible(col, m_idx, data, self.fixed_y):
-                self._add_column(machine, col)
+            self._try_add_priced_column(m_idx, sp)
+
+    def _seed_covering_columns(self, executor: ProcessPoolExecutor | None = None) -> None:
+        """对 R=0 / W≥ 物料抬高 ρ 定价补种，先让 LRMP 可行再进入正式 CG。"""
+        items = self._covering_items()
+        if not items:
+            return
+        data = self.data
+        num_i = len(data.cured_items)
+        num_t = len(data.periods)
+        seed_rho = 1.0e6
+
+        rho_passes: list[list[float]] = []
+        for i_idx in items:
+            rho = [0.0] * num_i
+            rho[i_idx] = seed_rho
+            rho_passes.append(rho)
+        if len(items) > 1:
+            rho = [0.0] * num_i
+            for i_idx in items:
+                rho[i_idx] = seed_rho
+            rho_passes.append(rho)
+
+        added = 0
+        for rho in rho_passes:
+            alpha = [[0.0] * num_t for _ in range(num_i)]
+            betas = [0.0] * len(data.machines)
+            priced = self._price_machines(
+                alpha,
+                rho,
+                betas,
+                use_gurobi_when_no_fixes=True,
+                executor=executor,
+                use_shared_duals=False,
+            )
+            for m_idx, sp in priced:
+                if self._try_add_priced_column(m_idx, sp):
+                    added += 1
+        if added:
+            self._log(
+                f"补种覆盖列: +{added} 列 (forced items={items}, "
+                f"pool={self._total_columns()})"
+            )
 
     def _seed_branch_columns(self, executor: ProcessPoolExecutor | None = None) -> None:
-        """scrap/Y 新分支后，用零对偶定价补充列，避免继承列池下 LRMP 不可行。"""
+        """scrap/Y/WIP 新分支后，用零对偶（或当前对偶）再补一轮列。"""
         data = self.data
         alpha = [[0.0] * len(data.periods) for _ in data.cured_items]
         rho = [0.0] * len(data.cured_items)
@@ -922,18 +1124,12 @@ class ColumnGenerationSolver:
             alpha,
             rho,
             betas,
-            use_gurobi_when_no_fixes=self.use_gurobi_init and not self.fixed_y,
+            use_gurobi_when_no_fixes=True,
             executor=executor,
-            use_shared_duals=self._alpha_flat is not None,
+            use_shared_duals=False,
         )
         for m_idx, sp in priced:
-            if sp is None:
-                continue
-            machine = data.machines[m_idx]
-            col = subproblem_to_column(data, m_idx, self._next_col_id, sp)
-            self._next_col_id += 1
-            if column_compatible(col, m_idx, data, self.fixed_y):
-                self._add_column(machine, col)
+            self._try_add_priced_column(m_idx, sp)
 
     def _init_master(self, relaxed: bool = True) -> None:
         """首次构建 LRMP；后续通过 _add_column_to_master 增量加列。"""
@@ -966,7 +1162,11 @@ class ColumnGenerationSolver:
 
         for machine in data.machines:
             for col in self.columns[machine]:
-                q_var = model.addVar(vtype=q_vtype, lb=0, ub=1, name=f"Q_{machine}_{len(q_vars[machine])}")
+                q_var = model.addVar(vtype=q_vtype, lb=0, name=f"Q_{machine}_{len(q_vars[machine])}")
+                # 注意：不要设 ub=1。已有 Σ_j q_j ≤ 1，再加逐列 ub=1 会引入上界对偶，
+                # 使最优 LRMP 上出现 q=1 且 RC<0，定价误以为可再改进并触发“重复列”假阳性。
+                if not relaxed:
+                    q_var.UB = 1.0
                 q_vars[machine].append(q_var)
                 obj += col.production_cost * q_var
 
@@ -1044,7 +1244,7 @@ class ColumnGenerationSolver:
                     if contrib > 0:
                         model.chgCoeff(cut_info["constr"], qv, float(contrib))
 
-        branch_rows, wip_rows = self._add_branch_constraints(model, q_vars, r_vars)
+        branch_rows, wip_rows, scrap_rows = self._add_branch_constraints(model, q_vars, r_vars)
 
         self._flow_pi_slots = [
             (i_idx * num_t + t_idx, constr) for (i_idx, t_idx), constr in flow_items.items()
@@ -1065,6 +1265,7 @@ class ColumnGenerationSolver:
             "setup_pair_cuts": self.setup_pair_cuts,
             "branch_rows": branch_rows,
             "wip_branch_rows": wip_rows,
+            "scrap_rows": scrap_rows,
         }
 
     def _add_lrmp_cuts(self, model: gp.Model, q_vars: dict[str, list], r_vars) -> None:
@@ -1075,7 +1276,7 @@ class ColumnGenerationSolver:
         num_t = len(data.periods)
         num_u = len(data.configs)
 
-        if opts.get("same_mt_setup", True):
+        if opts.get("same_mt_setup", False):
             for m_idx, machine in enumerate(data.machines):
                 for t_idx in range(num_t):
                     expr = gp.LinExpr()
@@ -1089,7 +1290,7 @@ class ColumnGenerationSolver:
                         {"constr": constr, "m_idx": m_idx, "t_idx": t_idx}
                     )
 
-        if opts.get("wip_process_lb", True):
+        if opts.get("wip_process_lb", False):
             for i_idx in range(len(data.cured_items)):
                 max_proc = max_process_for_item(data, i_idx)
                 lb = max(0.0, data.w_i[i_idx] - max_proc)
@@ -1135,7 +1336,8 @@ class ColumnGenerationSolver:
                         model.chgCoeff(cut_info["constr"], qv, float(pair_coeff))
 
     def _separate_setup_pair_cuts(self) -> int:
-        if not self.lrmp_cut_opts.get("setup_pair_separate", True):
+        # Setup Pair 割已停用；仅保留 Deadline Cover
+        if not self.lrmp_cut_opts.get("setup_pair_separate", False):
             return 0
         if self._model is None or self._artifacts is None:
             return 0
@@ -1248,11 +1450,11 @@ class ColumnGenerationSolver:
         q_var = model.addVar(
             vtype=GRB.CONTINUOUS,
             lb=0,
-            ub=1,
             obj=col.production_cost,
             name=f"Q_{machine}_{len(q_vars[machine])}",
             column=col_expr,
         )
+        # 同 _init_master：连续松弛不设 ub=1（Σq≤1 已足够）
         q_vars[machine].append(q_var)
         model.update()
 
@@ -1266,6 +1468,7 @@ class ColumnGenerationSolver:
         self.lrmp_obj = None
         self.last_min_rc = None
         self.stop_reason = None
+        self._feasibility_seed_retried = False
         self.iteration_times = []
         self.iteration_time_detail = []
 
@@ -1327,6 +1530,159 @@ class ColumnGenerationSolver:
         self.converged = False
         return self.lrmp_obj if self.lrmp_obj is not None else last_valid_lb, iteration_rcs, self.columns
 
+    def ensure_master_lp(self) -> bool:
+        """Ensure RMP is a solved continuous LP with readable primal/duals.
+
+        Returns True if ObjVal/Pi are safe to read.
+        """
+        if self._model is None:
+            return False
+        model = self._model
+        try:
+            # RMP must stay continuous; MIP leftovers break .Pi access.
+            model.Params.Method = -1
+            model.optimize()
+            if model.Status in (GRB.OPTIMAL, GRB.SUBOPTIMAL) and model.SolCount > 0:
+                try:
+                    self.lrmp_obj = float(model.ObjVal)
+                except Exception:
+                    pass
+                return True
+        except Exception:
+            return False
+        return False
+
+    def reinforce_with_cuts(self, *, max_repricing_iters: int = 10) -> float:
+        """Gomory R / gap-cuts 已停用；仅保留 Deadline Cover。"""
+        return self.lrmp_obj or 0.0
+
+    def _reinforce_with_cuts_legacy(self, *, max_repricing_iters: int = 10) -> float:
+        """BPC 切平面强化：对 fractional R_i 加 Gomory 取整切后重新定价（已停用，保留备查）。
+
+        返回加切并重新定价后的 LRMP 目标值。
+        若加切后 RMP 不可行/无 dual，回滚切平面并恢复 LP，避免后续分支读 .Pi 崩溃。
+        """
+        if not self.converged or self._model is None or self._artifacts is None:
+            return self.lrmp_obj or 0.0
+
+        model = self._model
+        _artifacts = self._artifacts
+        r_vars = _artifacts["R"]
+        num_i = len(self.data.cured_items)
+        num_t = len(self.data.periods)
+        num_m = len(self.data.machines)
+        prev_lrmp = self.lrmp_obj or 0.0
+
+        if not self.ensure_master_lp():
+            return prev_lrmp
+
+        # 1) 添加 Gomory R-cuts（记下约束以便失败回滚）
+        added_constrs: list[gp.Constr] = []
+        model.update()
+        for i_idx in range(num_i):
+            try:
+                r_val = float(r_vars[i_idx].X)
+            except Exception:
+                continue
+            frac = r_val - int(r_val)
+            if frac < 1e-4:
+                continue
+            ceil_val = int(r_val) + 1
+            c = model.addConstr(r_vars[i_idx] >= ceil_val, name=f"gomory_r_{i_idx}")
+            added_constrs.append(c)
+
+        if not added_constrs:
+            return prev_lrmp
+
+        print(
+            f"  [BPC] added {len(added_constrs)} Gomory R-cuts, re-optimizing + repricing...",
+            flush=True,
+        )
+
+        def _rollback() -> float:
+            for c in added_constrs:
+                try:
+                    model.remove(c)
+                except Exception:
+                    pass
+            model.update()
+            self.ensure_master_lp()
+            return self.lrmp_obj if self.lrmp_obj is not None else prev_lrmp
+
+        # 2) 重新求解 RMP
+        model.optimize()
+        if model.Status not in (GRB.OPTIMAL, GRB.SUBOPTIMAL) or model.SolCount <= 0:
+            self.stop_reason = "cut_made_infeasible"
+            print("    [BPC] cuts made RMP infeasible/unstable — rollback", flush=True)
+            return _rollback()
+
+        try:
+            self.lrmp_obj = float(model.ObjVal)
+        except Exception:
+            print("    [BPC] cuts left RMP without ObjVal — rollback", flush=True)
+            return _rollback()
+
+        # 3) 提取新 duals 并重新定价（让列池适配增强后的 RMP）
+        use_shared_duals = self._alpha_flat is not None
+        try:
+            for _ in range(max_repricing_iters):
+                if not self.ensure_master_lp():
+                    raise RuntimeError("RMP lost LP duals during cut reinforce")
+                if use_shared_duals:
+                    self._extract_duals_to_shm()
+                    alpha = [
+                        [self._alpha_flat[i * num_t + t] for t in range(num_t)]
+                        for i in range(num_i)
+                    ]
+                    rhos = [self._rho_arr[i] for i in range(num_i)]
+                    betas = [self._beta_arr[m] for m in range(num_m)]
+                else:
+                    flow_items = _artifacts.get("flow_items") or {}
+                    alpha = [[0.0] * num_t for _ in range(num_i)]
+                    for (i_idx, t_idx), constr in flow_items.items():
+                        try:
+                            alpha[i_idx][t_idx] = float(constr.Pi)
+                        except Exception:
+                            alpha[i_idx][t_idx] = 0.0
+                    rhos = []
+                    for idx in range(num_i):
+                        try:
+                            rhos.append(float(_artifacts["wip_balance"][idx].Pi))
+                        except Exception:
+                            rhos.append(0.0)
+                    betas = []
+                    for m in self.data.machines:
+                        try:
+                            betas.append(float(_artifacts["choose_one"][m].Pi))
+                        except Exception:
+                            betas.append(0.0)
+
+                new_cols = self._price_machines(
+                    alpha, rhos, betas,
+                    use_gurobi_when_no_fixes=False, executor=None,
+                    use_shared_duals=use_shared_duals, duals_preloaded=use_shared_duals,
+                )
+                if not new_cols:
+                    break
+                best_rc = self.last_min_rc
+                for m, col in new_cols:
+                    self._add_column_to_master(m, col)
+                    self.iteration_times.append(time.perf_counter())
+                model.optimize()
+                if model.Status not in (GRB.OPTIMAL, GRB.SUBOPTIMAL) or model.SolCount <= 0:
+                    raise RuntimeError("RMP unstable after cut reprice")
+                self.lrmp_obj = float(model.ObjVal)
+                if best_rc is not None and best_rc >= -1e-6:
+                    break
+        except Exception as exc:
+            print(f"    [BPC] cut reinforce failed ({exc}) — rollback", flush=True)
+            return _rollback()
+
+        if not self.ensure_master_lp():
+            print("    [BPC] no duals after cuts — rollback", flush=True)
+            return _rollback()
+        return self.lrmp_obj if self.lrmp_obj is not None else prev_lrmp
+
     def _q_for_column(self, machine: str, col: ScheduleColumn) -> gp.Var | None:
         """列池中与 col 同指纹的 q 变量。"""
         if self._artifacts is None:
@@ -1380,28 +1736,18 @@ class ColumnGenerationSolver:
         self,
         priced: list[tuple[int, SubproblemResult | None]],
     ) -> float:
-        """可改进定价约简成本：重复列且 q 已饱和(≈1)时，不计其负 RC。"""
-        eps = max(self.rc_tolerance, CHECKER_TOL["cg_column_select"])
+        """可改进定价约简成本：忽略与 fixed_y 不兼容的定价列（不应计入收敛判据）。"""
         min_rc = float("inf")
         for m_idx, sp in priced:
             rc = sp.reduced_cost if sp is not None else self._rc_arr[m_idx]
             if rc >= -self.rc_tolerance:
                 continue
-            machine = self.data.machines[m_idx]
             if sp is None:
                 min_rc = min(min_rc, rc)
                 continue
             col = subproblem_to_column(self.data, m_idx, -1, sp)
-            if not self._column_seen(machine, col):
-                min_rc = min(min_rc, rc)
+            if not column_compatible(col, m_idx, self.data, self.fixed_y):
                 continue
-            qv = self._q_for_column(machine, col)
-            if qv is not None:
-                try:
-                    if float(qv.X) >= 1.0 - eps:
-                        continue
-                except (AttributeError, gp.GurobiError):
-                    pass
             min_rc = min(min_rc, rc)
         return min_rc if math.isfinite(min_rc) else 0.0
 
@@ -1435,8 +1781,15 @@ class ColumnGenerationSolver:
                 model.optimize()
             master_sec = time.perf_counter() - t_master
             if model.Status not in (GRB.OPTIMAL, GRB.SUBOPTIMAL):
-                if not iteration_rcs and self.fixed_wip:
+                if (
+                    not iteration_rcs
+                    and self._needs_feasibility_seed()
+                    and not getattr(self, "_feasibility_seed_retried", False)
+                ):
+                    self._feasibility_seed_retried = True
                     self._reset_master()
+                    self._seed_forced_setup_columns()
+                    self._seed_covering_columns(pricing_pool)
                     self._seed_branch_columns(pricing_pool)
                     self._init_master(relaxed=True)
                     model = self._model
@@ -1481,6 +1834,15 @@ class ColumnGenerationSolver:
                 rhos = [self._artifacts["wip_balance"][i_idx].Pi for i_idx in range(len(self.data.cured_items))]
                 betas = [self._artifacts["choose_one"][machine].Pi for machine in self.data.machines]
 
+            # LRMP 割 / 分支对偶必须进入定价，否则会把池中已有列误判为负 RC
+            alpha = self._fold_deadline_duals_into_alpha(alpha)
+            rhos = self._fold_wip_branch_duals_into_rho(rhos)
+            self._refresh_setup_cut_cost_deltas()
+            duals_ready = False
+            if use_shared_duals and self._alpha_flat is not None:
+                self._write_pricing_duals(alpha, rhos, betas)
+                duals_ready = True
+
             sum_rc = 0.0
             lb_correction = 0.0
             min_rc = float("inf")
@@ -1493,7 +1855,7 @@ class ColumnGenerationSolver:
                 use_gurobi_when_no_fixes=False,
                 executor=pricing_pool,
                 use_shared_duals=use_shared_duals,
-                duals_preloaded=use_shared_duals and self._alpha_flat is not None,
+                duals_preloaded=duals_ready,
             )
             for m_idx, sp in priced:
                 machine = self.data.machines[m_idx]
@@ -1505,7 +1867,14 @@ class ColumnGenerationSolver:
                     if sp is None:
                         raise RuntimeError(f"missing pricing column for machine {machine} with rc={rc}")
                     col = subproblem_to_column(self.data, m_idx, self._next_col_id, sp)
-                    if column_compatible(col, m_idx, self.data, self.fixed_y) and not self._column_seen(machine, col):
+                    if column_compatible(col, m_idx, self.data, self.fixed_y):
+                        if self._column_seen(machine, col):
+                            raise RuntimeError(
+                                f"CG duplicate column: machine={machine} rc={rc:.6f} "
+                                f"iter={len(iteration_rcs) + 1} fingerprint already in pool "
+                                f"(pool_size={len(self.columns.get(machine, []))}). "
+                                f"Negative-RC rediscovery of an existing column is a bug."
+                            )
                         self._next_col_id += 1
                         new_columns.append((machine, col))
             pricing_sec = time.perf_counter() - t_pricing
@@ -1545,6 +1914,16 @@ class ColumnGenerationSolver:
             self.last_min_rc = min_rc if min_rc != float("inf") else None
             last_valid_lb = max(last_valid_lb, lrmp_obj + lb_correction)
             self.lrmp_obj = lrmp_obj
+
+            # Lagrangian lower bound pruning: lrmp_obj + Σ min(RC_i, 0) ≤ MP_obj ≤ IP_obj
+            if self.incumbent is not None and last_valid_lb >= self.incumbent - 1e-5:
+                self.stop_reason = "pruned_by_incumbent"
+                self.converged = True
+                self._log(
+                    f"CG 提前终止(Lagrangian下界): LB={last_valid_lb:.2f} >= incumbent={self.incumbent:.2f}  "
+                    f"iter={iter_no}  cols={self._total_columns()}"
+                )
+                return iteration_rcs, last_valid_lb
 
             if not new_columns:
                 pool_min_rc = self._min_pool_column_rc()
@@ -1599,6 +1978,47 @@ class ColumnGenerationSolver:
         self._model.optimize()
         return self._model, self._artifacts
 
+    def solve_rmp_ip(
+        self,
+        time_limit: float = 30.0,
+        mip_gap: float = 0.01,
+    ) -> float | None:
+        """Solve current restricted master with binary Q → valid UB from column pool.
+
+        Temporarily flips Q to binary, solves the MIP, then restores continuous Q
+        and re-solves the LP so subsequent dual/implied queries stay valid.
+        """
+        if self._model is None or self._artifacts is None:
+            return None
+        model = self._model
+        q_vars = self._artifacts["Q"]
+        old_tl = model.Params.TimeLimit
+        old_gap = model.Params.MIPGap
+        old_method = model.Params.Method
+        changed: list[tuple[gp.Var, str]] = []
+        for qlist in q_vars.values():
+            for q in qlist:
+                changed.append((q, q.VType))
+                q.VType = GRB.BINARY
+        model.Params.TimeLimit = max(1.0, float(time_limit))
+        model.Params.MIPGap = max(0.0, float(mip_gap))
+        model.Params.Method = -1  # automatic for MIP
+        model.Params.OutputFlag = 0
+        obj: float | None = None
+        try:
+            model.optimize()
+            if model.SolCount > 0 and model.ObjVal is not None:
+                obj = float(model.ObjVal)
+        finally:
+            for q, vt in changed:
+                q.VType = vt
+            model.Params.TimeLimit = old_tl
+            model.Params.MIPGap = old_gap
+            model.Params.Method = old_method
+            # Must restore a continuous LP with duals for branching features.
+            self.ensure_master_lp()
+        return obj
+
     def get_selected_columns(self, threshold: float = 0.0) -> dict[str, list[ScheduleColumn]]:
         if self._model is None or self._artifacts is None:
             self._init_master(relaxed=True)
@@ -1641,7 +2061,13 @@ class ColumnGenerationSolver:
         if self._model is None or self._artifacts is None:
             return {}
         r_vars = self._artifacts["R"]
-        return {i: float(r_vars[i].X) for i in range(len(self.data.cured_items))}
+        result = {}
+        for i in range(len(self.data.cured_items)):
+            try:
+                result[i] = float(r_vars[i].X)
+            except Exception:
+                result[i] = 0.0
+        return result
 
     def get_implied_wip(self) -> dict[int, float]:
         """当前 LRMP 窗内加工量 W_i（列贡献部分，不含 R）。"""

@@ -1,0 +1,20 @@
+{
+  "scale": "small",
+  "T": 25,
+  "I": 35,
+  "M": 5,
+  "U": 5,
+  "seed": 7401,
+  "time_limit": 900.0,
+  "branch_strategy": "ml",
+  "ml_sb_refine_k": 5,
+  "no_im": true,
+  "status": "optimal",
+  "ub": 23665.5,
+  "lb": 23665.5,
+  "gap_pct": 0.0,
+  "runtime_sec": 3.21,
+  "nodes_explored": 5,
+  "nodes_pruned": 3,
+  "proved": true
+}

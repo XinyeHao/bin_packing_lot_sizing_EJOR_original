@@ -10,10 +10,7 @@ os.environ['GRB_CS_QUIET'] = '1'
 
 def main():
     import configuration as cfg
-    cfg.LEAD_TIME_CHOICES = (8, 9, 10)
-    cfg.WINDOW_GENERATION_BY_SET['small_cg'] = {
-        'length_frac': (0.45, 0.65), 'rel_frac': (0.03, 0.25), 'min_length': 6
-    }
+    cfg.apply_bench_generation()
 
     from configuration import SetConfig
     from instance_generator.generator import generate_instance

@@ -1,0 +1,71 @@
+{
+  "scale": "medium",
+  "method": "im_gurobi",
+  "time_limit": 1800.0,
+  "mip_gap": 0.0,
+  "seeds": [
+    8201,
+    8301,
+    8401,
+    8501,
+    8601
+  ],
+  "note": "same seeds as bpc_ml_medium_batch.json",
+  "rows": [
+    {
+      "seed": 8201,
+      "T": 30,
+      "I": 40,
+      "status": "optimal",
+      "ub": 27266.3,
+      "lb": 27266.3,
+      "gap_pct": 0.0,
+      "runtime_sec": 6.49,
+      "proved": true
+    },
+    {
+      "seed": 8301,
+      "T": 30,
+      "I": 40,
+      "status": "optimal",
+      "ub": 32233.500000000004,
+      "lb": 32233.500000000004,
+      "gap_pct": 0.0,
+      "runtime_sec": 9.02,
+      "proved": true
+    },
+    {
+      "seed": 8401,
+      "T": 30,
+      "I": 40,
+      "status": "optimal",
+      "ub": 30394.6,
+      "lb": 30394.6,
+      "gap_pct": 0.0,
+      "runtime_sec": 20.58,
+      "proved": true
+    },
+    {
+      "seed": 8501,
+      "T": 30,
+      "I": 40,
+      "status": "optimal",
+      "ub": 37586.5,
+      "lb": 37586.5,
+      "gap_pct": 0.0,
+      "runtime_sec": 4.17,
+      "proved": true
+    },
+    {
+      "seed": 8601,
+      "T": 30,
+      "I": 40,
+      "status": "optimal",
+      "ub": 30206.100000000002,
+      "lb": 30206.100000000002,
+      "gap_pct": 0.0,
+      "runtime_sec": 4.97,
+      "proved": true
+    }
+  ]
+}

@@ -11,7 +11,7 @@ from preprocessor.preprocess import preprocess
 from model_and_algo.column_generation import ColumnGenerationSolver
 
 seeds = [101, 202, 303, 404, 505]
-scfg = SetConfig('small_cg', 36, 5, 0, 50, 5)
+scfg = SetConfig('small_cg', 35, 5, 0, 50, 5)
 expected = {
     101: 26721.24,
     202: 28935.81,

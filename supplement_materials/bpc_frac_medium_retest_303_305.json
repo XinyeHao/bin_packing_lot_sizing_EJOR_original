@@ -1,0 +1,52 @@
+{
+  "note": "retest medium 303-305 with covering seed + mip_gap=1% early stop (tree dual LB)",
+  "frac_sb_refine_k": 5,
+  "mip_gap": 0.01,
+  "rows": [
+    {
+      "seed": 30301,
+      "T": 35,
+      "I": 50,
+      "time_limit": 1800.0,
+      "status": "gap_limit",
+      "ub": 34325.5,
+      "lb": 34035.74705882355,
+      "gap_pct": 0.8441,
+      "runtime_sec": 49.64,
+      "nodes_explored": 15,
+      "nodes_pruned": 2,
+      "nodes_cg_failed": 0,
+      "proved": false
+    },
+    {
+      "seed": 30401,
+      "T": 35,
+      "I": 50,
+      "time_limit": 1800.0,
+      "status": "gap_limit",
+      "ub": 25559.0,
+      "lb": 25307.515999999992,
+      "gap_pct": 0.9839,
+      "runtime_sec": 1219.8,
+      "nodes_explored": 237,
+      "nodes_pruned": 37,
+      "nodes_cg_failed": 0,
+      "proved": false
+    },
+    {
+      "seed": 30501,
+      "T": 35,
+      "I": 50,
+      "time_limit": 1800.0,
+      "status": "gap_limit",
+      "ub": 33217.8,
+      "lb": 32886.07152857143,
+      "gap_pct": 0.9986,
+      "runtime_sec": 457.3,
+      "nodes_explored": 174,
+      "nodes_pruned": 19,
+      "nodes_cg_failed": 0,
+      "proved": false
+    }
+  ]
+}

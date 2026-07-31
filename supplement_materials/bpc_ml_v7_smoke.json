@@ -1,0 +1,61 @@
+{
+  "round": 7,
+  "model": "C:\\Users\\haoxi\\PycharmProjects\\bin_packing_and_scheduling\\ml_branch_model.txt",
+  "model_mtime": 1785303772.9770105,
+  "branch_strategy": "ml",
+  "ml_sb_refine_k": 5,
+  "window": {
+    "length_range": [
+      12,
+      16
+    ],
+    "rel_frac": [
+      0.1,
+      0.5
+    ]
+  },
+  "scales": {
+    "small": [
+      30,
+      40
+    ],
+    "medium": [
+      35,
+      50
+    ]
+  },
+  "rows": [
+    {
+      "scale": "small",
+      "seed": 7401,
+      "T": 30,
+      "I": 40,
+      "time_limit": 900.0,
+      "status": "time_limit",
+      "ub": 21604.800000000003,
+      "lb": 21325.003333333334,
+      "gap_pct": 1.2951,
+      "runtime_sec": 899.69,
+      "nodes_explored": 483,
+      "nodes_pruned": 73,
+      "proved": false,
+      "ml_sb_refine_k": 5
+    },
+    {
+      "scale": "medium",
+      "seed": 30101,
+      "T": 35,
+      "I": 50,
+      "time_limit": 1800.0,
+      "status": "optimal",
+      "ub": 40211.9,
+      "lb": 40211.9,
+      "gap_pct": 0.0,
+      "runtime_sec": 146.33,
+      "nodes_explored": 67,
+      "nodes_pruned": 34,
+      "proved": true,
+      "ml_sb_refine_k": 5
+    }
+  ]
+}

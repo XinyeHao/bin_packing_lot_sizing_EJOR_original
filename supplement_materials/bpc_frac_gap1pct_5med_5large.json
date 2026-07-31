@@ -1,0 +1,240 @@
+{
+  "note": "BPC frac_sb mip_gap=1%: 5 medium (30101\u201330501) + 5 large (40101\u201340501)",
+  "frac_sb_refine_k": 5,
+  "mip_gap": 0.01,
+  "memory": "one subprocess per instance + gp.disposeDefaultEnv + os._exit",
+  "jobs": [
+    {
+      "scale": "medium",
+      "seed": 30101,
+      "limit": 1800.0
+    },
+    {
+      "scale": "medium",
+      "seed": 30201,
+      "limit": 1800.0
+    },
+    {
+      "scale": "medium",
+      "seed": 30301,
+      "limit": 1800.0
+    },
+    {
+      "scale": "medium",
+      "seed": 30401,
+      "limit": 1800.0
+    },
+    {
+      "scale": "medium",
+      "seed": 30501,
+      "limit": 1800.0
+    },
+    {
+      "scale": "large",
+      "seed": 40101,
+      "limit": 3600.0
+    },
+    {
+      "scale": "large",
+      "seed": 40201,
+      "limit": 3600.0
+    },
+    {
+      "scale": "large",
+      "seed": 40301,
+      "limit": 3600.0
+    },
+    {
+      "scale": "large",
+      "seed": 40401,
+      "limit": 3600.0
+    },
+    {
+      "scale": "large",
+      "seed": 40501,
+      "limit": 3600.0
+    }
+  ],
+  "rows": [
+    {
+      "scale": "medium",
+      "seed": 30101,
+      "T": 35,
+      "I": 50,
+      "M": 5,
+      "time_limit": 1800.0,
+      "mip_gap": 0.01,
+      "status": "gap_limit",
+      "ub": 40226.3,
+      "lb": 39915.419298245586,
+      "gap_pct": 0.7728,
+      "runtime_sec": 26.67,
+      "nodes_explored": 9,
+      "nodes_pruned": 0,
+      "nodes_cg_failed": 0,
+      "proved": false
+    },
+    {
+      "scale": "medium",
+      "seed": 30201,
+      "T": 35,
+      "I": 50,
+      "M": 5,
+      "time_limit": 1800.0,
+      "mip_gap": 0.01,
+      "status": "gap_limit",
+      "ub": 32784.299999999996,
+      "lb": 32486.359999999997,
+      "gap_pct": 0.9088,
+      "runtime_sec": 26.92,
+      "nodes_explored": 11,
+      "nodes_pruned": 2,
+      "nodes_cg_failed": 0,
+      "proved": false
+    },
+    {
+      "scale": "medium",
+      "seed": 30301,
+      "T": 35,
+      "I": 50,
+      "M": 5,
+      "time_limit": 1800.0,
+      "mip_gap": 0.01,
+      "status": "gap_limit",
+      "ub": 34325.5,
+      "lb": 34035.74705882355,
+      "gap_pct": 0.8441,
+      "runtime_sec": 47.01,
+      "nodes_explored": 15,
+      "nodes_pruned": 2,
+      "nodes_cg_failed": 0,
+      "proved": false
+    },
+    {
+      "scale": "medium",
+      "seed": 30401,
+      "T": 35,
+      "I": 50,
+      "M": 5,
+      "time_limit": 1800.0,
+      "mip_gap": 0.01,
+      "status": "gap_limit",
+      "ub": 25559.0,
+      "lb": 25307.515999999992,
+      "gap_pct": 0.9839,
+      "runtime_sec": 1153.49,
+      "nodes_explored": 237,
+      "nodes_pruned": 37,
+      "nodes_cg_failed": 0,
+      "proved": false
+    },
+    {
+      "scale": "medium",
+      "seed": 30501,
+      "T": 35,
+      "I": 50,
+      "M": 5,
+      "time_limit": 1800.0,
+      "mip_gap": 0.01,
+      "status": "gap_limit",
+      "ub": 33217.8,
+      "lb": 32886.07152857143,
+      "gap_pct": 0.9986,
+      "runtime_sec": 429.14,
+      "nodes_explored": 174,
+      "nodes_pruned": 19,
+      "nodes_cg_failed": 0,
+      "proved": false
+    },
+    {
+      "scale": "large",
+      "seed": 40101,
+      "T": 40,
+      "I": 55,
+      "M": 5,
+      "time_limit": 3600.0,
+      "mip_gap": 0.01,
+      "status": "time_limit",
+      "ub": 25902.800000000003,
+      "lb": 25562.934077348433,
+      "gap_pct": 1.3121,
+      "runtime_sec": 3600.46,
+      "nodes_explored": 372,
+      "nodes_pruned": 26,
+      "nodes_cg_failed": 0,
+      "proved": false
+    },
+    {
+      "scale": "large",
+      "seed": 40201,
+      "T": 40,
+      "I": 55,
+      "M": 5,
+      "time_limit": 3600.0,
+      "mip_gap": 0.01,
+      "status": "gap_limit",
+      "ub": 38310.899999999994,
+      "lb": 37932.715250689,
+      "gap_pct": 0.9871,
+      "runtime_sec": 1838.96,
+      "nodes_explored": 269,
+      "nodes_pruned": 47,
+      "nodes_cg_failed": 0,
+      "proved": false
+    },
+    {
+      "scale": "large",
+      "seed": 40301,
+      "T": 40,
+      "I": 55,
+      "M": 5,
+      "time_limit": 3600.0,
+      "mip_gap": 0.01,
+      "status": "time_limit",
+      "ub": 27464.499999999996,
+      "lb": 26899.185806451635,
+      "gap_pct": 2.0583,
+      "runtime_sec": 3602.59,
+      "nodes_explored": 575,
+      "nodes_pruned": 10,
+      "nodes_cg_failed": 0,
+      "proved": false
+    },
+    {
+      "scale": "large",
+      "seed": 40401,
+      "T": 40,
+      "I": 55,
+      "M": 5,
+      "time_limit": 3600.0,
+      "mip_gap": 0.01,
+      "status": "time_limit",
+      "ub": 23594.600000000002,
+      "lb": 23221.560101651834,
+      "gap_pct": 1.581,
+      "runtime_sec": 3602.46,
+      "nodes_explored": 286,
+      "nodes_pruned": 24,
+      "nodes_cg_failed": 0,
+      "proved": false
+    },
+    {
+      "scale": "large",
+      "seed": 40501,
+      "T": 40,
+      "I": 55,
+      "M": 5,
+      "time_limit": 3600.0,
+      "mip_gap": 0.01,
+      "status": "gap_limit",
+      "ub": 34759.1,
+      "lb": 34415.32604936708,
+      "gap_pct": 0.989,
+      "runtime_sec": 603.95,
+      "nodes_explored": 60,
+      "nodes_pruned": 9,
+      "nodes_cg_failed": 0,
+      "proved": false
+    }
+  ]
+}

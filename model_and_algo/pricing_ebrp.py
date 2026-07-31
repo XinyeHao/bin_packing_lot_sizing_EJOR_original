@@ -251,6 +251,7 @@ class EBRPContext:
         alpha_flat=None,
         num_t: int | None = None,
         deadline: float | None = None,
+        setup_cost_delta: list[list[float]] | None = None,
     ) -> list[list[list[Batch]]]:
         """第二阶段：批目录生成。
 
@@ -282,6 +283,8 @@ class EBRPContext:
                 break
             u_idx, t_idx, span = spec.u_idx, spec.t_idx, spec.span
             p_cum_u = self.p_cum[u_idx]
+            if setup_cost_delta is not None:
+                p_cum_u = p_cum_u + setup_cost_delta[u_idx][t_idx]
             dc_t = dual_contrib
 
             for subset, item_mask in self._subset_cache[spec_idx]:
@@ -382,10 +385,12 @@ def _solve_routing(
     machine: str,
     start_t: int = 0,
     start_mask: int = 0,
+    forced_at: dict[int, int] | None = None,
 ) -> tuple[float, dict[tuple[int, int], _MemoEntry]]:
     """记忆化 DP 路由（递归，精确）。
 
     状态：(t, used_mask)，t 为当前时刻，used_mask 为已用物料位掩码。
+    forced_at: 若给出 {t: u}，则时刻 t 必须开工配置 u（Y=1 分支），不可空闲跳过。
     """
     # 预排序：每时刻的批按 delta 升序（最负优先），尽早收紧 best 便于递归分支剪枝
     for t in range(num_t):
@@ -400,6 +405,8 @@ def _solve_routing(
         if batches_by_t[t]:
             nxt = t
     next_event[num_t] = num_t
+
+    forced_times = sorted(forced_at.keys()) if forced_at else []
 
     # 打包键：单整数替代 tuple，减少 Python 分配与哈希开销
     # shift 必须 ≥ max_item_index，否则 (t, mask) 会与 (t-1, mask + 2^shift) 碰撞
@@ -416,6 +423,7 @@ def _solve_routing(
     _batches_by_t = batches_by_t
     _num_t = num_t
     _deadline = deadline
+    _forced_at = forced_at or {}
 
     # 预计算乐观下界：lb_sum[t] = sum_{t'>=t} min(0, min_delta_at_t')
     # 忽略物料冲突，是真实未来成本的下界（更负 = 更乐观）
@@ -424,7 +432,11 @@ def _solve_routing(
     for t in range(_num_t - 1, -1, -1):
         batches = _batches_by_t[t]
         best_at_t = 0.0
-        if batches and batches[0].delta < 0.0:
+        if t in _forced_at:
+            u_req = _forced_at[t]
+            forced_deltas = [b.delta for b in batches if b.u_idx == u_req]
+            best_at_t = min(forced_deltas) if forced_deltas else 0.0
+        elif batches and batches[0].delta < 0.0:
             best_at_t = batches[0].delta  # batches 已按 delta 升序排列
         lb_sum[t] = best_at_t + lb_sum[t + 1]
     lb_sum[_num_t] = 0.0
@@ -454,6 +466,14 @@ def _solve_routing(
             return True
         return False
 
+    def _idle_target(t_idx: int) -> int:
+        """空闲跳转的下一时刻；不得越过未处理的强制开工点。"""
+        nxt = _next_event[t_idx]
+        for ft in forced_times:
+            if t_idx <= ft < nxt:
+                return ft
+        return nxt
+
     def solve(t_idx: int, used_mask: int) -> float:
         _node_counter[0] += 1
         if _node_counter[0] & 63 == 0 and timed_out():
@@ -471,7 +491,32 @@ def _solve_routing(
         st.nodes_expanded += 1
         _progress_report()
 
-        nxt = _next_event[t_idx]
+        u_req = _forced_at.get(t_idx)
+        if u_req is not None:
+            # Y=1：本时刻必须开工 u_req，禁止空闲
+            best = math.inf
+            entry = _MemoEntry(best, "end")
+            for b in _batches_by_t[t_idx]:
+                if b.u_idx != u_req:
+                    continue
+                if b.item_mask & used_mask:
+                    continue
+                et = t_idx + b.span
+                if et > _num_t:
+                    continue
+                # 不得跨越后续强制开工点
+                if any(t_idx < ft < et for ft in forced_times):
+                    continue
+                if b.delta + lb_sum[et] >= best - tol:
+                    continue
+                cand = b.delta + solve(et, used_mask | b.item_mask)
+                if cand < best - tol:
+                    best = cand
+                    entry = _MemoEntry(best, "batch", next_t=et, batch=b)
+            memo[key] = entry
+            return best
+
+        nxt = _idle_target(t_idx)
         idle_best = solve(nxt, used_mask)
         best = idle_best
         entry = _MemoEntry(best, "idle", next_t=nxt)
@@ -481,6 +526,9 @@ def _solve_routing(
                 continue
             et = t_idx + b.span
             if et > _num_t:
+                continue
+            # 不得跨越强制开工点（否则会跳过 Y=1）
+            if any(t_idx < ft < et for ft in forced_times):
                 continue
 
             # 乐观下界剪枝：即使未来没有任何冲突，也无法胜过 best
@@ -572,6 +620,7 @@ def solve_subproblem_ebrp(
     alpha_flat=None,
     num_t_for_flat: int | None = None,
     skip_cross_check: bool = False,
+    setup_cost_delta: list[list[float]] | None = None,
 ) -> SubproblemResult:
     num_t = len(data.periods)
     num_i = len(data.cured_items)
@@ -595,6 +644,7 @@ def solve_subproblem_ebrp(
             alpha_flat=alpha_flat,
             num_t=num_t_for_flat or num_t,
             deadline=deadline,
+            setup_cost_delta=setup_cost_delta,
         )
         if deadline is not None and time.perf_counter() >= deadline:
             st.timed_out = True
@@ -608,12 +658,21 @@ def solve_subproblem_ebrp(
 
     # 处理固定变量（来自分枝定界）
     forbidden: set[tuple[int, int]] = set()
+    forced_at: dict[int, int] = {}
     if fixed_y:
         for (u, t), val in fixed_y.items():
             if val == 0:
                 forbidden.add((u, t))
             elif val == 1:
-                # 固定该 (u,t) 被选中时，禁止同 t 其他配置
+                # 强制 (u,t) 开工；同时禁止同时刻其他配置
+                if t in forced_at and forced_at[t] != u:
+                    return SubproblemResult(
+                        reduced_cost=float("inf"),
+                        x={},
+                        y={},
+                        production_cost=0.0,
+                    )
+                forced_at[t] = u
                 for other_u in range(num_u):
                     if other_u != u:
                         forbidden.add((other_u, t))
@@ -636,6 +695,7 @@ def solve_subproblem_ebrp(
         st=st,
         progress_interval_sec=progress_interval_sec,
         machine=machine,
+        forced_at=forced_at or None,
     )
     if st.timed_out and not math.isfinite(batch_cost):
         batch_cost = math.inf
@@ -661,6 +721,7 @@ def solve_subproblem_ebrp(
             sp_gb = solve_subproblem_im_gurobi(
                 data, machine_idx, gb_alpha, beta, rho_val,
                 time_limit=5.0, progress_interval_sec=0.0,
+                setup_cost_delta=setup_cost_delta,
             )
             if sp_gb.reduced_cost < reduced_cost - CHECKER_TOL["pricing_dp"]:
                 if progress_interval_sec > 0:

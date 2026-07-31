@@ -1,0 +1,31 @@
+{
+  "scale": "medium_was_old_large",
+  "seed": 693341,
+  "T": 35,
+  "I": 50,
+  "time_limit": 1800.0,
+  "status": "time_limit",
+  "ub": 13996.6,
+  "lb": 13689.9,
+  "gap_pct": 2.1912,
+  "runtime_sec": 1803.17,
+  "proved": false,
+  "window": {
+    "length_range": [
+      12,
+      16
+    ],
+    "rel_frac": [
+      0.1,
+      0.5
+    ]
+  },
+  "LT": [
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ]
+}

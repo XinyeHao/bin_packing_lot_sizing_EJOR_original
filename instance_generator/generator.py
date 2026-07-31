@@ -24,6 +24,7 @@ from configuration import (
     LARGE_CONFIG,
     LARGE_INSTANCE_NAME,
     LARGE_INSTANCE_SEED,
+    BENCH_LEAD_TIME_CHOICES,
     LEAD_TIME_CHOICES,
     MACHINE_CAPACITY_RANGE,
     SET_C,
@@ -225,11 +226,7 @@ def _generate_set_c_config_anchors(
     window_params: dict,
 ) -> dict[str, tuple[int, int]]:
     """每种配置一个锚点加工窗；可选沿周计划错峰，避免全周高度重叠。"""
-    lo_f, hi_f = window_params["length_frac"]
-    min_length = window_params["min_length"]
-    w_lo = max(min_length, math.ceil(lo_f * num_periods))
-    w_hi = max(w_lo, math.ceil(hi_f * num_periods))
-    w_hi = min(w_hi, num_periods)
+    w_lo, w_hi = _window_length_bounds(window_params, num_periods)
 
     num_u = len(config_ids)
     anchors: dict[str, tuple[int, int]] = {}
@@ -401,21 +398,34 @@ def _calibrate_tray_lengths(
     return tray_lengths
 
 
-def _generate_item_window(
-    num_periods: int,
-    rng: random.Random,
-    *,
-    length_frac: tuple[float, float],
-    rel_frac: tuple[float, float],
-    min_length: int,
-) -> tuple[int, int]:
-    """生成单件进罐时间窗 rel_i, end_i；窗长适中且可容纳阶跃。"""
-    lo_f, hi_f = length_frac
+def _window_length_bounds(window_params: dict, num_periods: int) -> tuple[int, int]:
+    """窗长上下界。优先 length_range（绝对时段，与 T 无关）；否则 length_frac×T。"""
+    if "length_range" in window_params:
+        w_lo, w_hi = window_params["length_range"]
+        w_lo, w_hi = int(w_lo), int(w_hi)
+        if w_lo > w_hi:
+            w_lo, w_hi = w_hi, w_lo
+        w_hi = min(w_hi, num_periods)
+        w_lo = max(1, min(w_lo, w_hi))
+        return w_lo, w_hi
+    lo_f, hi_f = window_params["length_frac"]
+    min_length = int(window_params.get("min_length", 1))
     w_lo = max(min_length, math.ceil(lo_f * num_periods))
     w_hi = max(w_lo, math.ceil(hi_f * num_periods))
     w_hi = min(w_hi, num_periods)
+    return w_lo, w_hi
+
+
+def _generate_item_window(
+    num_periods: int,
+    rng: random.Random,
+    window_params: dict,
+) -> tuple[int, int]:
+    """生成单件进罐时间窗 rel_i, end_i。"""
+    w_lo, w_hi = _window_length_bounds(window_params, num_periods)
     window_len = rng.randint(w_lo, w_hi)
 
+    rel_frac = window_params["rel_frac"]
     rel_lo = max(1, math.ceil(rel_frac[0] * num_periods))
     rel_hi = max(rel_lo, math.ceil(rel_frac[1] * num_periods))
     max_rel = max(1, num_periods - window_len + 1)
@@ -471,13 +481,7 @@ def _generate_windows_and_steps(
     deadlines: dict[str, int] = {}
     item_wait_steps: dict[str, list[list[int]]] = {}
     for i in item_ids:
-        rel, end = _generate_item_window(
-            num_periods,
-            rng,
-            length_frac=window_params["length_frac"],
-            rel_frac=window_params["rel_frac"],
-            min_length=window_params["min_length"],
-        )
+        rel, end = _generate_item_window(num_periods, rng, window_params)
         earliest[i] = rel
         deadlines[i] = end
         item_wait_steps[i] = _generate_item_wait_steps(rel, end, rng)
@@ -524,9 +528,12 @@ def generate_instance(
     item_ids = [f"i{k}" for k in range(num_items)]
 
     if set_config.set_type == "C":
-        config_lead_times = {u: rng.choice(SET_C_LEAD_TIME_CHOICES) for u in config_ids}
+        lt_pool = SET_C_LEAD_TIME_CHOICES
+    elif set_config.set_type in _CG_BENCH_TYPES:
+        lt_pool = BENCH_LEAD_TIME_CHOICES
     else:
-        config_lead_times = {u: rng.choice(LEAD_TIME_CHOICES) for u in config_ids}
+        lt_pool = LEAD_TIME_CHOICES
+    config_lead_times = {u: rng.choice(lt_pool) for u in config_ids}
     if set_config.set_type == "C":
         item_config = _assign_items_to_configs(item_ids, config_ids, rng)
         item_machines = _assign_item_machines(

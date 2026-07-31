@@ -1,0 +1,201 @@
+{
+  "note": "BPC frac_sb (frac Top-K + short SB refine) vs IM",
+  "frac_sb_refine_k": 5,
+  "window": {
+    "length_range": [
+      12,
+      16
+    ],
+    "rel_frac": [
+      0.1,
+      0.5
+    ]
+  },
+  "scales": {
+    "medium": [
+      35,
+      50
+    ],
+    "large": [
+      40,
+      55
+    ]
+  },
+  "rows": [
+    {
+      "scale": "medium",
+      "seed": 30101,
+      "T": 35,
+      "I": 50,
+      "time_limit": 1800.0,
+      "bpc": {
+        "status": "optimal",
+        "ub": 40211.9,
+        "lb": 40211.9,
+        "gap_pct": 0.0,
+        "runtime_sec": 71.69,
+        "nodes_explored": 33,
+        "nodes_pruned": 17,
+        "proved": true
+      },
+      "im": {
+        "status": "time_limit",
+        "ub": 40226.3,
+        "lb": 34544.899999999994,
+        "gap_pct": 14.1236,
+        "runtime_sec": 1801.24,
+        "proved": false
+      }
+    },
+    {
+      "scale": "medium",
+      "seed": 30201,
+      "T": 35,
+      "I": 50,
+      "time_limit": 1800.0,
+      "bpc": {
+        "status": "optimal",
+        "ub": 32784.299999999996,
+        "lb": 32784.299999999996,
+        "gap_pct": 0.0,
+        "runtime_sec": 105.5,
+        "nodes_explored": 47,
+        "nodes_pruned": 24,
+        "proved": true
+      },
+      "im": {
+        "status": "time_limit",
+        "ub": 32784.299999999996,
+        "lb": 30176.6,
+        "gap_pct": 7.9541,
+        "runtime_sec": 1801.24,
+        "proved": false
+      }
+    },
+    {
+      "scale": "medium",
+      "seed": 30301,
+      "T": 35,
+      "I": 50,
+      "time_limit": 1800.0,
+      "bpc": {
+        "status": "no_incumbent",
+        "ub": 34145.3,
+        "lb": 33621.17027027026,
+        "gap_pct": 1.535,
+        "runtime_sec": 112.21,
+        "nodes_explored": 41,
+        "nodes_pruned": 20,
+        "proved": false
+      },
+      "im": {
+        "status": "time_limit",
+        "ub": 34145.3,
+        "lb": 32191.802323087784,
+        "gap_pct": 5.7211,
+        "runtime_sec": 1801.37,
+        "proved": false
+      }
+    },
+    {
+      "scale": "medium",
+      "seed": 30401,
+      "T": 35,
+      "I": 50,
+      "time_limit": 1800.0,
+      "bpc": {
+        "status": "time_limit",
+        "ub": 25559.0,
+        "lb": 25438.907792307687,
+        "gap_pct": 0.4699,
+        "runtime_sec": 1799.29,
+        "nodes_explored": 376,
+        "nodes_pruned": 87,
+        "proved": false
+      },
+      "im": {
+        "status": "time_limit",
+        "ub": 25920.600000000002,
+        "lb": 23872.0,
+        "gap_pct": 7.9034,
+        "runtime_sec": 1801.34,
+        "proved": false
+      }
+    },
+    {
+      "scale": "medium",
+      "seed": 30501,
+      "T": 35,
+      "I": 50,
+      "time_limit": 1800.0,
+      "bpc": {
+        "status": "no_incumbent",
+        "ub": 33217.8,
+        "lb": 32176.524884792645,
+        "gap_pct": 3.1347,
+        "runtime_sec": 1615.37,
+        "nodes_explored": 773,
+        "nodes_pruned": 341,
+        "proved": false
+      },
+      "im": {
+        "status": "time_limit",
+        "ub": 33217.8,
+        "lb": 30598.500000000004,
+        "gap_pct": 7.8852,
+        "runtime_sec": 1801.54,
+        "proved": false
+      }
+    },
+    {
+      "scale": "large",
+      "seed": 40101,
+      "T": 40,
+      "I": 55,
+      "time_limit": 3600.0,
+      "bpc": {
+        "status": "time_limit",
+        "ub": 25864.800000000003,
+        "lb": 25616.55189904307,
+        "gap_pct": 0.9598,
+        "runtime_sec": 3599.82,
+        "nodes_explored": 388,
+        "nodes_pruned": 52,
+        "proved": false
+      },
+      "im": {
+        "status": "time_limit",
+        "ub": 26058.5,
+        "lb": 22199.3,
+        "gap_pct": 14.8098,
+        "runtime_sec": 3602.24,
+        "proved": false
+      }
+    },
+    {
+      "scale": "large",
+      "seed": 40201,
+      "T": 40,
+      "I": 55,
+      "time_limit": 3600.0,
+      "bpc": {
+        "status": "time_limit",
+        "ub": 38310.899999999994,
+        "lb": 38294.33728581217,
+        "gap_pct": 0.0432,
+        "runtime_sec": 3601.29,
+        "nodes_explored": 605,
+        "nodes_pruned": 265,
+        "proved": false
+      },
+      "im": {
+        "status": "time_limit",
+        "ub": 38244.399999999994,
+        "lb": 33961.40610393328,
+        "gap_pct": 11.199,
+        "runtime_sec": 3602.49,
+        "proved": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,269 @@
+{
+  "instances": [
+    {
+      "name": "set_small_opt_01",
+      "seed": 2102,
+      "scale_tag": "xs",
+      "T": 12,
+      "U": 3,
+      "I": 12,
+      "M": 2,
+      "lead_time_choices": [
+        2,
+        3,
+        4
+      ],
+      "window": {
+        "length_frac": [
+          0.35,
+          0.55
+        ],
+        "rel_frac": [
+          0.05,
+          0.25
+        ],
+        "min_length": 3
+      },
+      "im": {
+        "seed": 2102,
+        "T": 12,
+        "U": 3,
+        "I": 12,
+        "M": 2,
+        "status": "optimal",
+        "objective": 3859.1,
+        "lower_bound": 3859.1,
+        "runtime_sec": 0.22867500002030283,
+        "proved": true,
+        "tray_load_util": 0.13443396226415094,
+        "slot_density": 0.5,
+        "machine_time_util": 0.7083333333333334,
+        "avg_start_space_util": 0.9306837949953164,
+        "span_weighted_space_util": 0.939405388811486,
+        "num_batches": 3,
+        "scrap_qty": 2.0
+      },
+      "bpc": {
+        "status": "optimal",
+        "objective": 3859.1000000000004,
+        "lower_bound": 3859.1000000000004,
+        "runtime_sec": 1.171755600022152,
+        "proved": true,
+        "nodes": 5
+      },
+      "db_path": "C:\\Users\\haoxi\\PycharmProjects\\bin_packing_and_scheduling\\instances\\set_small_opt_01.db"
+    },
+    {
+      "name": "set_small_opt_02",
+      "seed": 2106,
+      "scale_tag": "xs",
+      "T": 12,
+      "U": 3,
+      "I": 12,
+      "M": 2,
+      "lead_time_choices": [
+        2,
+        3,
+        4
+      ],
+      "window": {
+        "length_frac": [
+          0.35,
+          0.55
+        ],
+        "rel_frac": [
+          0.05,
+          0.25
+        ],
+        "min_length": 3
+      },
+      "im": {
+        "seed": 2106,
+        "T": 12,
+        "U": 3,
+        "I": 12,
+        "M": 2,
+        "status": "optimal",
+        "objective": 3684.6000000000004,
+        "lower_bound": 3684.6000000000004,
+        "runtime_sec": 0.08936220000032336,
+        "proved": true,
+        "tray_load_util": 0.13953488372093026,
+        "slot_density": 0.5,
+        "machine_time_util": 0.6666666666666666,
+        "avg_start_space_util": 0.7948237059264817,
+        "span_weighted_space_util": 0.7895255063765942,
+        "num_batches": 3,
+        "scrap_qty": 2.0
+      },
+      "bpc": {
+        "status": "optimal",
+        "objective": 3684.6,
+        "lower_bound": 3684.6,
+        "runtime_sec": 0.258147899992764,
+        "proved": true,
+        "nodes": 1
+      },
+      "db_path": "C:\\Users\\haoxi\\PycharmProjects\\bin_packing_and_scheduling\\instances\\set_small_opt_02.db"
+    },
+    {
+      "name": "set_small_opt_03",
+      "seed": 2107,
+      "scale_tag": "xs",
+      "T": 12,
+      "U": 3,
+      "I": 12,
+      "M": 2,
+      "lead_time_choices": [
+        2,
+        3,
+        4
+      ],
+      "window": {
+        "length_frac": [
+          0.35,
+          0.55
+        ],
+        "rel_frac": [
+          0.05,
+          0.25
+        ],
+        "min_length": 3
+      },
+      "im": {
+        "seed": 2107,
+        "T": 12,
+        "U": 3,
+        "I": 12,
+        "M": 2,
+        "status": "optimal",
+        "objective": 2108.4,
+        "lower_bound": 2108.4,
+        "runtime_sec": 0.1680635999655351,
+        "proved": true,
+        "tray_load_util": 0.10416666666666669,
+        "slot_density": 0.5,
+        "machine_time_util": 0.6666666666666666,
+        "avg_start_space_util": 0.6826298701298701,
+        "span_weighted_space_util": 0.7727272727272727,
+        "num_batches": 4,
+        "scrap_qty": 1.0
+      },
+      "bpc": {
+        "status": "optimal",
+        "objective": 2108.4,
+        "lower_bound": 2108.4,
+        "runtime_sec": 2.486498700105585,
+        "proved": true,
+        "nodes": 13
+      },
+      "db_path": "C:\\Users\\haoxi\\PycharmProjects\\bin_packing_and_scheduling\\instances\\set_small_opt_03.db"
+    },
+    {
+      "name": "set_small_opt_04",
+      "seed": 2108,
+      "scale_tag": "xs",
+      "T": 12,
+      "U": 3,
+      "I": 12,
+      "M": 2,
+      "lead_time_choices": [
+        2,
+        3,
+        4
+      ],
+      "window": {
+        "length_frac": [
+          0.35,
+          0.55
+        ],
+        "rel_frac": [
+          0.05,
+          0.25
+        ],
+        "min_length": 3
+      },
+      "im": {
+        "seed": 2108,
+        "T": 12,
+        "U": 3,
+        "I": 12,
+        "M": 2,
+        "status": "optimal",
+        "objective": 2718.1999999999994,
+        "lower_bound": 2718.1999999999994,
+        "runtime_sec": 0.18934359995182604,
+        "proved": true,
+        "tray_load_util": 0.1496598639455782,
+        "slot_density": 0.5,
+        "machine_time_util": 0.5416666666666666,
+        "avg_start_space_util": 0.9474877670366392,
+        "span_weighted_space_util": 0.9519678316670797,
+        "num_batches": 3,
+        "scrap_qty": 2.0
+      },
+      "bpc": {
+        "status": "optimal",
+        "objective": 2718.2,
+        "lower_bound": 2718.2,
+        "runtime_sec": 5.098955500056036,
+        "proved": true,
+        "nodes": 25
+      },
+      "db_path": "C:\\Users\\haoxi\\PycharmProjects\\bin_packing_and_scheduling\\instances\\set_small_opt_04.db"
+    },
+    {
+      "name": "set_small_opt_05",
+      "seed": 2109,
+      "scale_tag": "xs",
+      "T": 12,
+      "U": 3,
+      "I": 12,
+      "M": 2,
+      "lead_time_choices": [
+        2,
+        3,
+        4
+      ],
+      "window": {
+        "length_frac": [
+          0.35,
+          0.55
+        ],
+        "rel_frac": [
+          0.05,
+          0.25
+        ],
+        "min_length": 3
+      },
+      "im": {
+        "seed": 2109,
+        "T": 12,
+        "U": 3,
+        "I": 12,
+        "M": 2,
+        "status": "optimal",
+        "objective": 3375.1,
+        "lower_bound": 3375.1,
+        "runtime_sec": 0.28821050003170967,
+        "proved": true,
+        "tray_load_util": 0.16666666666666666,
+        "slot_density": 0.5,
+        "machine_time_util": 0.7083333333333334,
+        "avg_start_space_util": 0.8375104427736005,
+        "span_weighted_space_util": 0.8797729618163054,
+        "num_batches": 3,
+        "scrap_qty": 3.0
+      },
+      "bpc": {
+        "status": "optimal",
+        "objective": 3375.0999999999995,
+        "lower_bound": 3375.0999999999995,
+        "runtime_sec": 0.6612206000136212,
+        "proved": true,
+        "nodes": 1
+      },
+      "db_path": "C:\\Users\\haoxi\\PycharmProjects\\bin_packing_and_scheduling\\instances\\set_small_opt_05.db"
+    }
+  ]
+}

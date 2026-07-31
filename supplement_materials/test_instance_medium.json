@@ -1,0 +1,153 @@
+[
+  {
+    "name": "set_im_med_01",
+    "seed": 8101,
+    "T": 30,
+    "U": 5,
+    "I": 40,
+    "M": 5,
+    "LT": [
+      6,
+      7,
+      8
+    ],
+    "window": {
+      "length_frac": [
+        0.4,
+        0.6
+      ],
+      "rel_frac": [
+        0.04,
+        0.25
+      ],
+      "min_length": 5
+    },
+    "status": "time_limit",
+    "ub": 19812.499999999996,
+    "lb": 19443.5,
+    "gap_pct": 1.8624605678233257,
+    "runtime_sec": 1800.9451113999821,
+    "proved": false
+  },
+  {
+    "name": "set_im_med_02",
+    "seed": 8102,
+    "T": 30,
+    "U": 5,
+    "I": 40,
+    "M": 5,
+    "LT": [
+      6,
+      7,
+      8
+    ],
+    "window": {
+      "length_frac": [
+        0.4,
+        0.6
+      ],
+      "rel_frac": [
+        0.04,
+        0.25
+      ],
+      "min_length": 5
+    },
+    "status": "time_limit",
+    "ub": 21561.399999999998,
+    "lb": 20353.100000000002,
+    "gap_pct": 5.603996029942378,
+    "runtime_sec": 1801.136242800043,
+    "proved": false
+  },
+  {
+    "name": "set_im_med_03",
+    "seed": 8103,
+    "T": 30,
+    "U": 5,
+    "I": 40,
+    "M": 5,
+    "LT": [
+      6,
+      7,
+      8
+    ],
+    "window": {
+      "length_frac": [
+        0.4,
+        0.6
+      ],
+      "rel_frac": [
+        0.04,
+        0.25
+      ],
+      "min_length": 5
+    },
+    "status": "time_limit",
+    "ub": 19428.899999999998,
+    "lb": 18358.4,
+    "gap_pct": 5.509833289584056,
+    "runtime_sec": 1801.4307508999482,
+    "proved": false
+  },
+  {
+    "name": "set_im_med_04",
+    "seed": 8104,
+    "T": 30,
+    "U": 5,
+    "I": 40,
+    "M": 5,
+    "LT": [
+      6,
+      7,
+      8
+    ],
+    "window": {
+      "length_frac": [
+        0.4,
+        0.6
+      ],
+      "rel_frac": [
+        0.04,
+        0.25
+      ],
+      "min_length": 5
+    },
+    "status": "time_limit",
+    "ub": 19400.000000000004,
+    "lb": 17698.200000000004,
+    "gap_pct": 8.772164948453604,
+    "runtime_sec": 1801.4149872000562,
+    "proved": false
+  },
+  {
+    "name": "set_im_med_05",
+    "seed": 8107,
+    "T": 30,
+    "U": 5,
+    "I": 40,
+    "M": 5,
+    "LT": [
+      6,
+      7,
+      8
+    ],
+    "window": {
+      "length_frac": [
+        0.4,
+        0.6
+      ],
+      "rel_frac": [
+        0.04,
+        0.25
+      ],
+      "min_length": 5
+    },
+    "status": "time_limit",
+    "ub": 15964.199999999999,
+    "lb": 15453.299999999992,
+    "gap_pct": 3.200285639117569,
+    "runtime_sec": 1801.0577104999684,
+    "proved": false,
+    "note": "q_sum=26.9 LT8=8 LT_hist={8: 8, 6: 24, 7: 8}"
+  }
+]

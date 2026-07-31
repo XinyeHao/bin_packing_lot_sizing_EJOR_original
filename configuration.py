@@ -15,7 +15,25 @@ RESULT_DIR = PROJECT_ROOT / "result"
 
 DEFAULT_PERIOD_HOURS = 1.0
 
+# 小/中/大实验算例统一：
+# - LT∈[5,10]（占罐时长）
+# - 窗长为绝对时段、与 T 无关（符合「工艺窗不随计划期变长」）
+# - 窗须明显大于 LT，否则几乎无排程松弛、算例会过易（旧 (5,6) 即此问题）
+# - 难度主要由 T、I（及负载）拉开，不靠拉长窗
+BENCH_LEAD_TIME_CHOICES = (5, 6, 7, 8, 9, 10)
+BENCH_WINDOW: dict = {
+    "length_range": (12, 16),  # 绝对窗长；均值~14，相对 LT~7 约有 +7 松弛
+    "rel_frac": (0.10, 0.50),  # 就绪落在 [0.1T, 0.5T]
+}
+# 三档规模（U=M=5）；仅 T、I 不同
+# 原「中」(30,40) → 现「小」；原「大」(35,50) → 现「中」
+# 现「大」= 原大各 +5 → (40, 55)
+BENCH_SMALL = (30, 40)   # T, I
+BENCH_MEDIUM = (35, 50)
+BENCH_LARGE = (40, 55)
+
 # 时间窗与等待阶梯联动生成（按物料）
+# length_range=(lo,hi)：绝对窗长；length_frac+min_length：相对 T 的旧规则（A/B/C/demo）
 WINDOW_GENERATION_BY_SET: dict[str, dict] = {
     "A": {"length_frac": (0.38, 0.58), "rel_frac": (0.06, 0.22), "min_length": 5},
     "B": {"length_frac": (0.40, 0.62), "rel_frac": (0.04, 0.18), "min_length": 6},
@@ -23,11 +41,29 @@ WINDOW_GENERATION_BY_SET: dict[str, dict] = {
     "large": {"length_frac": (0.42, 0.60), "rel_frac": (0.05, 0.20), "min_length": 6},
     # Set-C：就绪后 1~2 天内需进罐（工艺有效期）；配合锚点错峰与 jitter 压低 EBRP 活跃件数
     "C": {"length_frac": (0.22, 0.38), "rel_frac": (0.02, 0.55), "min_length": 24},
-    # 小规模 CG：窄窗 + 错峰，配合高报废罚则迫使加工与多轮补列
-    "small_cg": {"length_frac": (0.20, 0.38), "rel_frac": (0.03, 0.30), "min_length": 4},
-    # 中规模 CG：在 Gurobi 子问题可承受范围内放大 T、|I|、|M|
-    "med_cg": {"length_frac": (0.22, 0.40), "rel_frac": (0.03, 0.28), "min_length": 5},
+    # 小/中/大实验（SetConfig small_cg）：统一 BENCH_WINDOW
+    "small_cg": dict(BENCH_WINDOW),
+    "med_cg": dict(BENCH_WINDOW),
 }
+
+
+def apply_bench_generation(
+    lead_times: tuple[int, ...] | None = None,
+    window: dict | None = None,
+) -> None:
+    """将小/中/大统一 LT 与时间窗写入 configuration 与 generator 模块。"""
+    import instance_generator.generator as genmod
+
+    global BENCH_LEAD_TIME_CHOICES
+    lt = tuple(lead_times) if lead_times is not None else BENCH_LEAD_TIME_CHOICES
+    w = dict(window) if window is not None else dict(BENCH_WINDOW)
+    BENCH_LEAD_TIME_CHOICES = lt
+    WINDOW_GENERATION_BY_SET["small_cg"] = w
+    WINDOW_GENERATION_BY_SET["med_cg"] = w
+    genmod.BENCH_LEAD_TIME_CHOICES = lt
+    genmod.LEAD_TIME_CHOICES = lt
+    genmod.WINDOW_GENERATION_BY_SET["small_cg"] = w
+    genmod.WINDOW_GENERATION_BY_SET["med_cg"] = w
 ITEM_STEP_COUNT_RANGE = (1, 2)       # 每件时间窗内 lt 阶跃次数
 ITEM_STEP_DELTA_RANGE = (1, 3)       # 每档额外占罐小时（折算为时段）
 
@@ -169,6 +205,8 @@ SET_B_GENERATION = {
 
 DEFAULT_TIME_LIMIT = 900.0
 DEFAULT_MIP_GAP = 0.05
+# BPC 树搜索相对 gap：(UB − 全局开节点最小 LB) / UB ≤ 该值则停（0=证到最优）
+DEFAULT_BP_MIP_GAP = 0.01
 DEFAULT_LIM_TIME_LIMIT = 300.0
 
 DEFAULT_CG_MAX_ITERATIONS = 1000
@@ -190,20 +228,38 @@ IM_PRICING_DEFAULT_TIME_LIMIT = 90.0
 DEFAULT_BP_MAX_NODES = 5000
 DEFAULT_BP_OPT_MAX_NODES = 20000
 DEFAULT_BP_NODE_IM_TIME_LIMIT = 60.0
-DEFAULT_BP_USE_NODE_IM = False  # 节点 CG 收敛后是否用 IM 求 incumbent
-DEFAULT_BP_ROOT_IM = True  # 根节点 IM 求初始上界
-DEFAULT_BP_FINAL_IM = True  # 结束时 IM 补 incumbent
+# Legacy flags: BPC UB path now uses CGFO + integer LRMP only; these are ignored.
+DEFAULT_BP_USE_NODE_IM = False
+DEFAULT_BP_ROOT_IM = False
+DEFAULT_BP_FINAL_IM = False
 DEFAULT_BP_DEMO_MAX_NODES = 80
 DEFAULT_INSTANCE_TIME_LIMIT = 600.0  # 每个算例总时限（CG/BP/IM 合计）
 DEFAULT_BP_TIME_LIMIT = 600.0  # B&P 单算例求解时限
 DEFAULT_BP_OPT_TIME_LIMIT = 3600.0  # 追求最优时的 B&P 时限
 # B&P 单算例时限不超过同算例 IM 耗时的该比例（须 < 0.5）
 DEFAULT_BP_IM_TIME_RATIO = 0.45
-DEFAULT_BP_Y0_DEPTH_BUDGET = 200
+# Prefer setup_y0 only at very shallow depths; allow WIP/scrap earlier for LB lift.
+DEFAULT_BP_Y0_DEPTH_BUDGET = 2
 DEFAULT_BP_LAZY_Y1_CG_CAP = 60.0
 DEFAULT_BP_LB_STALL_EPS = 0.5
-BP_STRATEGIES = ("new_policy", "baseline_y0_dfs", "old_hybrid")
-DEFAULT_BP_STRATEGY = "new_policy"
+BP_STRATEGIES = (
+    "new_policy",
+    "best_bound",
+    "ml",
+    "frac_sb",  # frac Top-K pool → short strong-branch refine (no ML)
+    "baseline_y0_dfs",
+    "old_hybrid",
+)
+DEFAULT_BP_STRATEGY = "best_bound"
+# frac_sb uses the same refine K / child CG caps as ML online refine
+FRAC_SB_REFINE_K = 5  # user may set 3; default Top-5
+ML_BRANCH_TRAIN_DIR = PROJECT_ROOT / "ml_train_data"
+ML_BRANCH_MODEL_PATH = PROJECT_ROOT / "ml_branch_model.txt"
+ML_BRANCH_PRETRAIN_PATH = PROJECT_ROOT / "ml_branch_model_pretrain.txt"
+# Online ML branch: rank pool then short strong-branch refine on Top-K
+ML_SB_REFINE_K = 5
+ML_SB_CHILD_TLIM = 10.0  # hard cap per child CG side
+ML_SB_MIN_REMAINING = 40.0  # skip refine if wall time left below this (Top-5 needs more budget)
 
 CGFO_THRESHOLD_I = 0.0
 CGFO_THRESHOLD_II = 0.10

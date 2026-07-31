@@ -9,10 +9,7 @@ os.environ['GRB_CS_QUIET'] = '1'
 
 def main():
     import configuration as cfg
-    cfg.LEAD_TIME_CHOICES = (8, 9, 10)
-    cfg.WINDOW_GENERATION_BY_SET['small_cg'] = {
-        'length_frac': (0.45, 0.65), 'rel_frac': (0.03, 0.25), 'min_length': 6
-    }
+    cfg.apply_bench_generation()
     from configuration import SetConfig
     from instance_generator.generator import generate_instance
     from preprocessor.preprocess import preprocess
@@ -20,7 +17,7 @@ def main():
     from model_and_algo.pricing_im_gurobi import solve_subproblem_im_gurobi
 
     seeds = [101, 202]
-    scfg = SetConfig('small_cg', 36, 5, 0, 50, 5)
+    scfg = SetConfig('small_cg', 35, 5, 0, 50, 5)
 
     for seed in seeds:
         gc.collect(); time.sleep(0.3)

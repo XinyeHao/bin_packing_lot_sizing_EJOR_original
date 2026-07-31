@@ -1,0 +1,328 @@
+{
+  "chosen": {
+    "T": 25,
+    "U": 5,
+    "I": 35,
+    "M": 5,
+    "LT": [
+      5,
+      6,
+      7
+    ],
+    "window": {
+      "length_frac": [
+        0.38,
+        0.58
+      ],
+      "rel_frac": [
+        0.04,
+        0.25
+      ],
+      "min_length": 5
+    },
+    "tag": "lt567"
+  },
+  "accepted": [
+    {
+      "name": "set_im_opt900_01",
+      "seed": 7101,
+      "T": 25,
+      "U": 5,
+      "I": 35,
+      "M": 5,
+      "LT": [
+        5,
+        6,
+        7
+      ],
+      "window": {
+        "length_frac": [
+          0.38,
+          0.58
+        ],
+        "rel_frac": [
+          0.04,
+          0.25
+        ],
+        "min_length": 5
+      },
+      "status": "optimal",
+      "objective": 15032.5,
+      "lower_bound": 15032.5,
+      "gap": 0.0,
+      "runtime_sec": 68.11997080000583,
+      "proved": true,
+      "tray_load_util": 0.09759999999999999,
+      "slot_density": 0.28,
+      "machine_time_util": 0.64,
+      "avg_start_space_util": 0.8396648399607555,
+      "span_weighted_space_util": 0.8476480194113563,
+      "num_batches": 10,
+      "scrap_qty": 2.0
+    },
+    {
+      "name": "set_im_opt900_02",
+      "seed": 7102,
+      "T": 25,
+      "U": 5,
+      "I": 35,
+      "M": 5,
+      "LT": [
+        5,
+        6,
+        7
+      ],
+      "window": {
+        "length_frac": [
+          0.38,
+          0.58
+        ],
+        "rel_frac": [
+          0.04,
+          0.25
+        ],
+        "min_length": 5
+      },
+      "status": "optimal",
+      "objective": 14436.399999999998,
+      "lower_bound": 14436.399999999998,
+      "gap": 0.0,
+      "runtime_sec": 65.86726099997759,
+      "proved": true,
+      "tray_load_util": 0.07664,
+      "slot_density": 0.28,
+      "machine_time_util": 0.608,
+      "avg_start_space_util": 0.8587071844411746,
+      "span_weighted_space_util": 0.8836369528837767,
+      "num_batches": 10,
+      "scrap_qty": 1.0
+    },
+    {
+      "name": "set_im_opt900_03",
+      "seed": 7103,
+      "T": 25,
+      "U": 5,
+      "I": 35,
+      "M": 5,
+      "LT": [
+        5,
+        6,
+        7
+      ],
+      "window": {
+        "length_frac": [
+          0.38,
+          0.58
+        ],
+        "rel_frac": [
+          0.04,
+          0.25
+        ],
+        "min_length": 5
+      },
+      "status": "optimal",
+      "objective": 17165.300000000003,
+      "lower_bound": 17165.300000000003,
+      "gap": 0.0,
+      "runtime_sec": 63.42508670000825,
+      "proved": true,
+      "tray_load_util": 0.07885714285714285,
+      "slot_density": 0.28,
+      "machine_time_util": 0.696,
+      "avg_start_space_util": 0.7571203638881272,
+      "span_weighted_space_util": 0.7807039022998801,
+      "num_batches": 11,
+      "scrap_qty": 2.0
+    },
+    {
+      "name": "set_im_opt900_04",
+      "seed": 7104,
+      "T": 25,
+      "U": 5,
+      "I": 35,
+      "M": 5,
+      "LT": [
+        5,
+        6,
+        7
+      ],
+      "window": {
+        "length_frac": [
+          0.38,
+          0.58
+        ],
+        "rel_frac": [
+          0.04,
+          0.25
+        ],
+        "min_length": 5
+      },
+      "status": "optimal",
+      "objective": 13460.0,
+      "lower_bound": 13460.0,
+      "gap": 0.0,
+      "runtime_sec": 30.220514399930835,
+      "proved": true,
+      "tray_load_util": 0.06019047619047619,
+      "slot_density": 0.28,
+      "machine_time_util": 0.64,
+      "avg_start_space_util": 0.7865553494124922,
+      "span_weighted_space_util": 0.7994529478458049,
+      "num_batches": 11,
+      "scrap_qty": 1.0
+    },
+    {
+      "name": "set_im_opt900_05",
+      "seed": 7105,
+      "T": 25,
+      "U": 5,
+      "I": 35,
+      "M": 5,
+      "LT": [
+        5,
+        6,
+        7
+      ],
+      "window": {
+        "length_frac": [
+          0.38,
+          0.58
+        ],
+        "rel_frac": [
+          0.04,
+          0.25
+        ],
+        "min_length": 5
+      },
+      "status": "optimal",
+      "objective": 18695.799999999996,
+      "lower_bound": 18695.799999999996,
+      "gap": 0.0,
+      "runtime_sec": 252.547985500074,
+      "proved": true,
+      "tray_load_util": 0.09219047619047618,
+      "slot_density": 0.28,
+      "machine_time_util": 0.68,
+      "avg_start_space_util": 0.8261003696544391,
+      "span_weighted_space_util": 0.829652900687392,
+      "num_batches": 10,
+      "scrap_qty": 5.0
+    }
+  ],
+  "probe": [
+    {
+      "seed": 6101,
+      "T": 25,
+      "U": 5,
+      "I": 35,
+      "M": 5,
+      "LT": [
+        5,
+        6,
+        7
+      ],
+      "window": {
+        "length_frac": [
+          0.38,
+          0.58
+        ],
+        "rel_frac": [
+          0.04,
+          0.25
+        ],
+        "min_length": 5
+      },
+      "status": "optimal",
+      "objective": 12794.400000000001,
+      "lower_bound": 12794.400000000001,
+      "gap": 0.0,
+      "runtime_sec": 46.83263339998666,
+      "proved": true,
+      "tray_load_util": 0.05875,
+      "slot_density": 0.28,
+      "machine_time_util": 0.528,
+      "avg_start_space_util": 0.8071022727272726,
+      "span_weighted_space_util": 0.8169681623547731,
+      "num_batches": 10,
+      "scrap_qty": 2.0,
+      "tag": "lt567",
+      "note": "util_low"
+    },
+    {
+      "seed": 6202,
+      "T": 25,
+      "U": 5,
+      "I": 35,
+      "M": 5,
+      "LT": [
+        5,
+        6,
+        7
+      ],
+      "window": {
+        "length_frac": [
+          0.38,
+          0.58
+        ],
+        "rel_frac": [
+          0.04,
+          0.25
+        ],
+        "min_length": 5
+      },
+      "status": "optimal",
+      "objective": 13811.2,
+      "lower_bound": 13811.2,
+      "gap": 0.0,
+      "runtime_sec": 75.8049892000854,
+      "proved": true,
+      "tray_load_util": 0.07869387755102042,
+      "slot_density": 0.28,
+      "machine_time_util": 0.592,
+      "avg_start_space_util": 0.8874754770103401,
+      "span_weighted_space_util": 0.8829900195696763,
+      "num_batches": 10,
+      "scrap_qty": 1.0,
+      "tag": "lt567",
+      "note": "ok"
+    },
+    {
+      "seed": 6303,
+      "T": 25,
+      "U": 5,
+      "I": 35,
+      "M": 5,
+      "LT": [
+        5,
+        6,
+        7
+      ],
+      "window": {
+        "length_frac": [
+          0.38,
+          0.58
+        ],
+        "rel_frac": [
+          0.04,
+          0.25
+        ],
+        "min_length": 5
+      },
+      "status": "optimal",
+      "objective": 13658.7,
+      "lower_bound": 13658.7,
+      "gap": 0.0,
+      "runtime_sec": 73.65502149995882,
+      "proved": true,
+      "tray_load_util": 0.07050847457627119,
+      "slot_density": 0.28,
+      "machine_time_util": 0.64,
+      "avg_start_space_util": 0.8589648340590513,
+      "span_weighted_space_util": 0.8672350269989885,
+      "num_batches": 11,
+      "scrap_qty": 1.0,
+      "tag": "lt567",
+      "note": "ok"
+    }
+  ]
+}

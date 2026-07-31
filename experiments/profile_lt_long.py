@@ -59,7 +59,7 @@ def analyze(data):
 
 
 # ═══════════════════════════════════════════════════════════
-scfg = SetConfig("small_cg", 36, 5, 0, 50, 5)          # T=36  I=50  M=5  U=5
+scfg = SetConfig("small_cg", 35, 5, 0, 50, 5)          # T=35  I=50  M=5  U=5
 seed = 888
 
 clean()

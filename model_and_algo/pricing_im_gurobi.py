@@ -22,6 +22,7 @@ def solve_subproblem_im_gurobi(
     time_limit: float = DEFAULT_CG_INIT_TIME_LIMIT,
     fixed_y: dict[tuple[int, int], int] | None = None,
     progress_interval_sec: float = DEFAULT_PROGRESS_INTERVAL_SEC,
+    setup_cost_delta: list[list[float]] | None = None,
 ) -> SubproblemResult:
     """规范 IM 单机定价 MIP；用于小算例对照验证。"""
     machine = data.machines[machine_idx]
@@ -45,6 +46,13 @@ def solve_subproblem_im_gurobi(
     Lspan = model.addVars(num_u, num_t, vtype=GRB.INTEGER, lb=0, ub=num_t, name="L")
 
     obj = gp.quicksum(p_cum[u_idx] * Y[u_idx, t_idx] for u_idx in range(num_u) for t_idx in range(num_t))
+    if setup_cost_delta is not None:
+        obj = obj + gp.quicksum(
+            setup_cost_delta[u_idx][t_idx] * Y[u_idx, t_idx]
+            for u_idx in range(num_u)
+            for t_idx in range(num_t)
+            if abs(setup_cost_delta[u_idx][t_idx]) > 1e-12
+        )
     for i_idx in range(num_i):
         if data.b_im[i_idx][machine_idx] == 0:
             for t_idx in range(num_t):
