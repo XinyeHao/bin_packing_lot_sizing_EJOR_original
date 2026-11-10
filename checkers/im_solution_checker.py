@@ -1,4 +1,4 @@
-"""IM 可行解约束检查（单件物料、lt_it 阶跃占罐）。"""
+"""IM 可行解检查：同一批次按最长固化时间共同出罐。"""
 
 from __future__ import annotations
 
@@ -69,11 +69,12 @@ def check_im_feasibility(
         for t_idx, t in enumerate(periods):
             prev_inv = nested_get(result.inventory, i, periods[t_idx - 1]) if t_idx > 0 else 0.0
             prev_bo = nested_get(result.backorder, i, periods[t_idx - 1]) if t_idx > 0 else 0.0
+            u = data.configs[data.config_of_item[i_idx]]
             prod_in = sum(
                 _get_x(result, m, i, periods[prod_t_idx])
                 for m in data.machines
                 for prod_t_idx in range(len(periods))
-                if periods[prod_t_idx] + data.lt_it[i_idx][prod_t_idx] - 1 == periods[t_idx]
+                if periods[prod_t_idx] + _get_l(result, m, u, periods[prod_t_idx]) - 1 == periods[t_idx]
             )
             dem = data.d_it[i_idx][t_idx] * (1.0 - r_i)
             lhs = prev_inv - prev_bo + prod_in
@@ -119,7 +120,8 @@ def check_im_feasibility(
                         "wip_window",
                         f"X[{m},{i},{t}]={x} 超出窗口 [{e_i},{d_i}]",
                     )
-                if t + data.lt_it[i_idx][t_idx] - 1 > t_max:
+                u = data.configs[data.config_of_item[i_idx]]
+                if t + _get_l(result, m, u, t) - 1 > t_max:
                     report.add_violation(
                         "im_feasibility",
                         "horizon",
@@ -147,6 +149,16 @@ def check_im_feasibility(
                 l_val = _get_l(result, m, u, t)
                 if y < 0.5 and l_val > tol:
                     report.add_violation("im_feasibility", "l_without_y", f"{m},{u},t={t}: L={l_val} 但 Y=0")
+                if y >= 0.5:
+                    max_lt = max(
+                        (data.lt_it[i_idx][t - 1] for i_idx in i_list if _get_x(result, m, data.cured_items[i_idx], t) >= 0.5),
+                        default=0,
+                    )
+                    if not almost_equal(l_val, max_lt, tol):
+                        report.add_violation(
+                            "im_feasibility", "span_not_max",
+                            f"{m},{u},t={t}: L={l_val}，但该批最长固化时间为 {max_lt}",
+                        )
 
     for i_idx, i in enumerate(data.cured_items):
         u = data.configs[data.config_of_item[i_idx]]

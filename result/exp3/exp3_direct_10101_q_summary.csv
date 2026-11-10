@@ -1,0 +1,2 @@
+﻿scale,seed,T,I,capacity_multiplier,capacity_label,machines,valid_machine_comparisons,capacity_feasible,mean_ebrp_time_sec,mean_gurobi_time_sec,total_ebrp_time_sec,total_gurobi_time_sec,mean_ebrp_speedup_vs_gurobi
+small,10101,30,40,1.0,1q,5,5,True,0.036855139999988754,3.265640860000076,0.18427569999994375,16.32820430000038,96.90740258340492

@@ -252,28 +252,13 @@ class EBRPContext:
         num_t: int | None = None,
         deadline: float | None = None,
         setup_cost_delta: list[list[float]] | None = None,
+        required_setups: set[tuple[int, int]] | None = None,
     ) -> list[list[list[Batch]]]:
         """第二阶段：批目录生成。
 
         将当前对偶 (α, ρ) 代入缓存子集，计算 δ(B)，滤除 δ≥0，
         经 Pareto 支配剪枝后产出批目录。
         """
-        # 预计算每个物料在每时刻的对偶贡献 dual_contrib[i][t]
-        # dual_contrib[i][t] = rho[i] + alpha[i][t + lt[i][t] - 1]
-        num_i = len(data.cured_items)
-        dual_contrib: list[list[float]] = [[0.0] * self.num_t for _ in range(num_i)]
-        for t_idx in range(self.num_t):
-            for spec in self.pool_specs:
-                if spec.t_idx != t_idx:
-                    continue
-                for i in spec.pool:
-                    lt_i = data.lt_it[i][t_idx]
-                    comp_t = t_idx + lt_i - 1
-                    if alpha_flat is not None and num_t is not None:
-                        dual_contrib[i][t_idx] = rho[i] + (alpha_flat[i * num_t + comp_t] if 0 <= comp_t < num_t else 0.0)
-                    else:
-                        dual_contrib[i][t_idx] = rho[i] + (alpha[i][comp_t] if 0 <= comp_t < self.num_t else 0.0)
-
         catalog: list[list[list[Batch]]] = [
             [[] for _ in range(self.num_t)] for _ in range(self.num_u)
         ]
@@ -285,12 +270,25 @@ class EBRPContext:
             p_cum_u = self.p_cum[u_idx]
             if setup_cost_delta is not None:
                 p_cum_u = p_cum_u + setup_cost_delta[u_idx][t_idx]
-            dc_t = dual_contrib
-
             for subset, item_mask in self._subset_cache[spec_idx]:
-                dual_sum_val = sum(dc_t[i][t_idx] for i in subset)
+                # 同一热压罐批次中的所有工件均在批次最长固化时间结束时出罐。
+                comp_t = t_idx + span - 1
+                if alpha_flat is not None and num_t is not None:
+                    arrival_dual = lambda i: alpha_flat[i * num_t + comp_t] if 0 <= comp_t < num_t else 0.0
+                else:
+                    arrival_dual = lambda i: alpha[i][comp_t] if 0 <= comp_t < self.num_t else 0.0
+                dual_sum_val = sum(rho[i] + arrival_dual(i) for i in subset)
                 delta = p_cum_u - dual_sum_val
-                if delta >= 0 - CHECKER_TOL["pricing_dp"]:
+                # Without a Y=1 branch, a nonnegative batch can never improve
+                # the pricing objective and may be discarded.  At a forced
+                # setup (u,t), however, one batch must be chosen to satisfy
+                # Y[u,t]=1.  Such a mandatory batch can have a nonnegative
+                # individual delta while the complete schedule still has a
+                # negative reduced cost, so it must remain in the catalog.
+                if (
+                    delta >= 0 - CHECKER_TOL["pricing_dp"]
+                    and (required_setups is None or (u_idx, t_idx) not in required_setups)
+                ):
                     continue
 
                 catalog[u_idx][t_idx].append(
@@ -386,6 +384,7 @@ def _solve_routing(
     start_t: int = 0,
     start_mask: int = 0,
     forced_at: dict[int, int] | None = None,
+    sri_terms: tuple[tuple[int, float], ...] = (),
 ) -> tuple[float, dict[tuple[int, int], _MemoEntry]]:
     """记忆化 DP 路由（递归，精确）。
 
@@ -424,6 +423,15 @@ def _solve_routing(
     _num_t = num_t
     _deadline = deadline
     _forced_at = forced_at or {}
+    _sri_terms = sri_terms
+
+    def _sri_transition_cost(used_mask: int, batch_mask: int) -> float:
+        """Reduced-cost contribution of rank-1 SRI duals for one new batch."""
+        next_mask = used_mask | batch_mask
+        return sum(
+            -pi * (((next_mask & item_mask).bit_count() // 2) - ((used_mask & item_mask).bit_count() // 2))
+            for item_mask, pi in _sri_terms
+        )
 
     # 预计算乐观下界：lb_sum[t] = sum_{t'>=t} min(0, min_delta_at_t')
     # 忽略物料冲突，是真实未来成本的下界（更负 = 更乐观）
@@ -509,7 +517,7 @@ def _solve_routing(
                     continue
                 if b.delta + lb_sum[et] >= best - tol:
                     continue
-                cand = b.delta + solve(et, used_mask | b.item_mask)
+                cand = b.delta + _sri_transition_cost(used_mask, b.item_mask) + solve(et, used_mask | b.item_mask)
                 if cand < best - tol:
                     best = cand
                     entry = _MemoEntry(best, "batch", next_t=et, batch=b)
@@ -535,7 +543,7 @@ def _solve_routing(
             if b.delta + lb_sum[et] >= best - tol:
                 continue
 
-            cand = b.delta + solve(et, used_mask | b.item_mask)
+            cand = b.delta + _sri_transition_cost(used_mask, b.item_mask) + solve(et, used_mask | b.item_mask)
             if cand < best - tol:
                 best = cand
                 entry = _MemoEntry(best, "batch", next_t=et, batch=b)
@@ -621,6 +629,7 @@ def solve_subproblem_ebrp(
     num_t_for_flat: int | None = None,
     skip_cross_check: bool = False,
     setup_cost_delta: list[list[float]] | None = None,
+    sri_terms: tuple[tuple[int, float], ...] = (),
 ) -> SubproblemResult:
     num_t = len(data.periods)
     num_i = len(data.cured_items)
@@ -636,7 +645,33 @@ def solve_subproblem_ebrp(
     if ctx is None:
         ctx = EBRPContext.build(data, machine_idx)
 
-    if catalog is None:
+    # Process branch fixes before building the catalog.  Y=1 fixes change the
+    # admissible pricing problem: the corresponding setup must retain even
+    # nonnegative reduced-cost batches (see build_catalog).
+    forbidden: set[tuple[int, int]] = set()
+    forced_at: dict[int, int] = {}
+    if fixed_y:
+        for (u, t), val in fixed_y.items():
+            if val == 0:
+                forbidden.add((u, t))
+            elif val == 1:
+                if t in forced_at and forced_at[t] != u:
+                    return SubproblemResult(
+                        reduced_cost=float("inf"),
+                        x={},
+                        y={},
+                        production_cost=0.0,
+                        is_optimal=False,
+                    )
+                forced_at[t] = u
+                for other_u in range(num_u):
+                    if other_u != u:
+                        forbidden.add((other_u, t))
+
+    # A cached catalog has already discarded nonnegative-delta batches.  It is
+    # valid only when no setup is forced.  Rebuild under Y=1 fixes so mandatory
+    # batches at the forced setups are present.
+    if catalog is None or forced_at:
         catalog = ctx.build_catalog(
             data,
             alpha,
@@ -645,6 +680,7 @@ def solve_subproblem_ebrp(
             num_t=num_t_for_flat or num_t,
             deadline=deadline,
             setup_cost_delta=setup_cost_delta,
+            required_setups={(u, t) for t, u in forced_at.items()},
         )
         if deadline is not None and time.perf_counter() >= deadline:
             st.timed_out = True
@@ -654,28 +690,8 @@ def solve_subproblem_ebrp(
                 x={},
                 y={},
                 production_cost=0.0,
+                is_optimal=False,
             )
-
-    # 处理固定变量（来自分枝定界）
-    forbidden: set[tuple[int, int]] = set()
-    forced_at: dict[int, int] = {}
-    if fixed_y:
-        for (u, t), val in fixed_y.items():
-            if val == 0:
-                forbidden.add((u, t))
-            elif val == 1:
-                # 强制 (u,t) 开工；同时禁止同时刻其他配置
-                if t in forced_at and forced_at[t] != u:
-                    return SubproblemResult(
-                        reduced_cost=float("inf"),
-                        x={},
-                        y={},
-                        production_cost=0.0,
-                    )
-                forced_at[t] = u
-                for other_u in range(num_u):
-                    if other_u != u:
-                        forbidden.add((other_u, t))
 
     batches_by_t = _index_batches_by_t(catalog, num_u, num_t, forbidden)
 
@@ -696,6 +712,7 @@ def solve_subproblem_ebrp(
         progress_interval_sec=progress_interval_sec,
         machine=machine,
         forced_at=forced_at or None,
+        sri_terms=sri_terms,
     )
     if st.timed_out and not math.isfinite(batch_cost):
         batch_cost = math.inf
@@ -704,7 +721,7 @@ def solve_subproblem_ebrp(
     x, y, production_cost = _decode_plan(memo, 0, 0, num_t, p_cum)
 
     # Gurobi 交叉验证（仅在 EBRP 认为无负 RC 列时，兜底防止实现瑕疵）
-    if not skip_cross_check and reduced_cost > -1e-3 and not fixed_y and not st.timed_out:
+    if not skip_cross_check and not sri_terms and reduced_cost > -1e-3 and not fixed_y and not st.timed_out:
         try:
             from model_and_algo.pricing_im_gurobi import solve_subproblem_im_gurobi
 
@@ -735,6 +752,7 @@ def solve_subproblem_ebrp(
                     x=sp_gb.x,
                     y=sp_gb.y,
                     production_cost=sp_gb.production_cost,
+                    is_optimal=sp_gb.is_optimal,
                 )
         except Exception as exc:
             print(
@@ -747,4 +765,5 @@ def solve_subproblem_ebrp(
         x=x,
         y=y,
         production_cost=production_cost,
+        is_optimal=st.exact and not st.timed_out,
     )

@@ -6,20 +6,20 @@
 
 | seed | IM status | IM gap% | IM s | frac status | frac gap% | frac s | ML status | ML gap% | ML s |
 |------|-----------|---------|------|-------------|-----------|--------|-----------|---------|------|
-| 31101 | time_limit | 6.22 | 1801.7 | time_limit | 1.04 | 1800.1 | gap_limit | 0.99 | 1572.4 |
-| 31201 | time_limit | 10.41 | 1801.4 | gap_limit | 0.99 | 1748.9 | gap_limit | 1.00 | 856.0 |
-| 31301 | time_limit | 13.41 | 1801.5 | time_limit | 2.55 | 1799.2 | time_limit | 2.35 | 1800.3 |
-| 31401 | time_limit | 11.83 | 1801.3 | gap_limit | 1.00 | 440.3 | gap_limit | 1.00 | 408.8 |
-| 31501 | time_limit | 8.22 | 1801.3 | gap_limit | 1.00 | 1557.9 | time_limit | 1.18 | 1799.2 |
-| 31601 | optimal | 0.98 | 634.0 | gap_limit | 0.92 | 152.4 | gap_limit | 0.72 | 45.3 |
-| 31701 | time_limit | 5.83 | 1801.4 | gap_limit | 0.99 | 586.2 | gap_limit | 1.00 | 1178.1 |
-| 31801 | time_limit | 7.70 | 1801.2 | time_limit | 1.58 | 1800.0 | gap_limit | 0.98 | 566.4 |
-| 31901 | time_limit | 8.88 | 1801.3 | gap_limit | 0.98 | 103.1 | gap_limit | 0.96 | 135.6 |
-| 32001 | time_limit | 5.06 | 1803.8 | time_limit | 1.00 | 1801.2 | gap_limit | 1.00 | 1014.5 |
+| 31101 | time_limit | 5.08 | 1802.1 | gap_limit | 0.99 | 1173.7 | gap_limit | 0.99 | 1338.3 |
+| 31201 | time_limit | 6.11 | 1802.2 | gap_limit | 0.99 | 434.8 | gap_limit | 0.88 | 225.5 |
+| 31301 | time_limit | 5.86 | 1802.0 | time_limit | 3.01 | 1801.9 | time_limit | 3.30 | 1802.2 |
+| 31401 | time_limit | 10.31 | 1802.0 | gap_limit | 0.88 | 174.8 | gap_limit | 1.00 | 208.4 |
+| 31501 | time_limit | 9.38 | 1802.1 | gap_limit | 0.98 | 1608.1 | time_limit | 1.56 | 1800.5 |
+| 31601 | optimal | 0.86 | 758.4 | optimal | 0.00 | 96.5 | gap_limit | 0.30 | 104.2 |
+| 31701 | time_limit | 7.41 | 1802.0 | gap_limit | 0.96 | 1270.5 | gap_limit | 1.00 | 1668.2 |
+| 31801 | time_limit | 9.04 | 1802.0 | time_limit | 3.54 | 3132.6 | gap_limit | 1.00 | 1612.3 |
+| 31901 | time_limit | 5.66 | 1802.0 | gap_limit | 0.96 | 43.2 | gap_limit | 0.91 | 47.9 |
+| 32001 | time_limit | 4.16 | 1802.0 | gap_limit | 0.99 | 927.8 | gap_limit | 0.92 | 381.7 |
 
 ## 小结（已完成三方法的种子）
 
 - 完成三方法：10/10
-- IM：mean gap%=7.853，mean time=1684.9s，gap≤1% = 1/10
-- frac：mean gap%=1.204，mean time=1178.9s，gap≤1% = 7/10
-- ML：mean gap%=1.116，mean time=937.7s，gap≤1% = 8/10
+- IM：mean gap%=6.387，mean time=1697.7s，gap≤1% = 1/10
+- frac：mean gap%=1.331，mean time=1066.4s，gap≤1% = 8/10
+- ML：mean gap%=1.184，mean time=918.9s，gap≤1% = 8/10

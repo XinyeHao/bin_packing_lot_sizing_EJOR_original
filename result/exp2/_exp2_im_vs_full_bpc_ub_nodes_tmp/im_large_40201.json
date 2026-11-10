@@ -1,0 +1,21 @@
+{
+  "method": "im",
+  "scale": "large",
+  "seed": 40201,
+  "T": 40,
+  "I": 55,
+  "time_limit_sec": 3600.0,
+  "target_mip_gap": 0.01,
+  "capacity_multiplier": 1.0,
+  "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.",
+  "model_version": "common_unload_v2_span_link_ebrp_bpc_gap1_medium_large",
+  "capacity_feasible": true,
+  "oversized_items": [],
+  "status": "time_limit",
+  "ub": 39453.59999999999,
+  "lb": 34222.1,
+  "gap_pct": 13.259879960257095,
+  "lower_bound_certified": true,
+  "gurobi_nodes": 38113.0,
+  "runtime_sec": 3602.576
+}

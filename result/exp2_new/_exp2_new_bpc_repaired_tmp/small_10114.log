@@ -1,0 +1,7 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=23619.10 (budget=40s)
+  BP root proved: LB=23619.10 ¡Ý UB=23619.10
+Freeing default Gurobi environment
+{"experiment": "exp2_new_bpc", "method": "BPC", "scale": "small", "seed": 10114, "T": 30, "I": 40, "time_limit_sec": 900.0, "model_version": "common_unload_v2_span_link_ebrp_bpc_gap1_medium_large", "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.", "pricing_mode": "ebrp", "cuts": "standard_deadline_cover", "status": "optimal", "ub": 23619.1, "lb": 23619.1, "gap_pct": 0.0, "runtime_sec": 3.79, "nodes": 1, "nodes_created": 1, "nodes_pruned": 1, "nodes_cg_failed": 0, "root_lb": 23619.1, "root_cg_converged": true, "root_cg_stop": null, "lower_bound_certified": true, "termination_rule": "pending-node heap empty OR 1% gap OR time limit"}

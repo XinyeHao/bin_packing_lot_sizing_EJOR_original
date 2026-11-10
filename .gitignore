@@ -46,6 +46,3 @@ Thumbs.db
 supplement_materials/_bpc_ml_large_*.json
 
 
-# reference PDFs (not project code)
-supplement_materials/learning_to_branch/
-

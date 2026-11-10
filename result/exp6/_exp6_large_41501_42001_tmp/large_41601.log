@@ -1,0 +1,7 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+  BP [1/8000] node 0 kind=None depth=0 CG failed (used=38.4s, limit=600.0); retry#1/2 next_budget=900s (remain=3562s)
+  BP [2/8000] node 0 kind=None depth=0 CG failed (used=38.4s, limit=900.0); retry#2/2 next_budget=1350s (remain=3523s)
+  BP [3/8000] node 0 kind=None depth=0 CG failed (used=38.5s); abandon (max retries=2)
+Freeing default Gurobi environment

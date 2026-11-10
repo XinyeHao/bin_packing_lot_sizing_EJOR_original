@@ -1,0 +1,2 @@
+﻿scale,seed,T,I,time_limit_sec,gurobi_status,gurobi_ub,gurobi_runtime_sec,gurobi_solver_gap_pct,bpc_status,bpc_ub,bpc_runtime_sec,bpc_solver_gap_pct,bpc_nodes_explored,bpc_nodes_created,bpc_ub_improvement_vs_gurobi_pct,both_methods_found_feasible_solution,both_methods_proved_optimal,gurobi_error,bpc_error
+small,10101,30,40,900.0,time_limit,28128.800000000007,901.559,9.09921503939027,optimal,27905.000000000004,219.08,0.0,73.0,73.0,0.7956258354426882,True,False,,

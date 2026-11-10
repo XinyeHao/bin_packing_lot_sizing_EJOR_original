@@ -1,0 +1,6 @@
+﻿scale,seed,T,I,capacity_multiplier,capacity_label,machine_index,machine,capacity_feasible,oversized_items,ebrp_time_sec,gurobi_time_sec,ebrp_reduced_cost,gurobi_reduced_cost,reduced_cost_difference,ebrp_is_optimal,gurobi_is_optimal,ebrp_states_expanded,comparison_valid,ebrp_speedup_vs_gurobi,error
+small,10101,30,40,1.0,1q,0,m0,True,[],0.0574029999997947,2.2035273000001325,-12563.5,-12563.5,0.0,True,True,1429,True,38.38697106436969,
+small,10101,30,40,1.0,1q,1,m1,True,[],0.027085799999895244,2.387262400000054,-8932.4,-8932.4,0.0,True,True,1544,True,88.13704598015518,
+small,10101,30,40,1.0,1q,2,m2,True,[],0.029669600000033824,2.686699200000021,-9994.0,-9993.999999999998,-1.8189894035458565e-12,True,True,1363,True,90.55394073384737,
+small,10101,30,40,1.0,1q,3,m3,True,[],0.009989900000164198,1.4009077000000616,-8306.800000000001,-8306.800000000001,0.0,True,True,451,True,140.2324047264773,
+small,10101,30,40,1.0,1q,4,m4,True,[],0.060127400000055786,7.64980770000011,-9261.199999999999,-9261.2,1.8189894035458565e-12,True,True,3538,True,127.22665041217503,

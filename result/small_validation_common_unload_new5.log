@@ -1,0 +1,52 @@
+Small validation: T=30, I=40, U=M=5; seeds=[10111, 10112, 10113, 10114, 10115]
+Per-method time limit: 900s; BPC max nodes: 8000
+
+[1/5] seed=10111: IM (Gurobi)
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+Freeing default Gurobi environment
+  IM: status=time_limit, obj=29680.3, gap=10.1283%, time=901.48s
+[1/5] seed=10111: BPC (frac_sb, pricing=im_gurobi)
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+Freeing default Gurobi environment
+  FAILED: RuntimeError: CG duplicate column: machine=m3 rc=-25.000000 iter=13 fingerprint already in pool (pool_size=13). Negative-RC rediscovery of an existing column is a bug.
+
+[2/5] seed=10112: IM (Gurobi)
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+Freeing default Gurobi environment
+  IM: status=optimal, obj=14770.800000000003, gap=0.0%, time=885.84s
+[2/5] seed=10112: BPC (frac_sb, pricing=im_gurobi)
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+Freeing default Gurobi environment
+  FAILED: RuntimeError: CG duplicate column: machine=m0 rc=-172.173412 iter=26 fingerprint already in pool (pool_size=26). Negative-RC rediscovery of an existing column is a bug.
+
+[3/5] seed=10113: IM (Gurobi)
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+Freeing default Gurobi environment
+  IM: status=time_limit, obj=29441.999999999996, gap=12.4699%, time=902.02s
+[3/5] seed=10113: BPC (frac_sb, pricing=im_gurobi)
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+Freeing default Gurobi environment
+  FAILED: RuntimeError: CG duplicate column: machine=m1 rc=-195.000000 iter=12 fingerprint already in pool (pool_size=12). Negative-RC rediscovery of an existing column is a bug.
+
+[4/5] seed=10114: IM (Gurobi)
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+Freeing default Gurobi environment
+  IM: status=optimal, obj=23571.1, gap=0.0%, time=587.45s
+[4/5] seed=10114: BPC (frac_sb, pricing=im_gurobi)
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24

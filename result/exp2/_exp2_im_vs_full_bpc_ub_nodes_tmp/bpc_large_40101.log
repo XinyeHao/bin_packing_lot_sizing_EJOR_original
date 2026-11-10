@@ -1,0 +1,534 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=27035.80 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(1, 0, 15)=0.5000 y_min=1259.030
+  BP [1/8000] node 0 depth=0 LB=25180.60 branch Y(1, 0, 15)=0.5000 strategy=frac_sb (79.6s)
+    [CGFO node] incumbent=26876.90 (depth=1, budget=20s)
+    [frac-sb] refine k=5 confirm Y(4, 1, 4)=0.4715 y_min=1265.713
+  BP [2/8000] node 2 depth=1 LB=25314.25 branch Y(4, 1, 4)=0.4715 strategy=frac_sb (18.7s)
+    [frac-sb] refine k=5 confirm wip i=14 W=0.5192 le0 y_min=1292.130
+  BP [3/8000] node 1 depth=1 LB=25842.61 branch wip i=14 W=0.5192 le0 strategy=frac_sb (24.5s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 6)=0.5058 y_min=1269.732
+  BP [4/8000] node 4 depth=2 LB=25394.63 branch Y(3, 1, 6)=0.5058 strategy=frac_sb (17.4s)
+  BP [5/8000] node 3 depth=2 partial-CG LB=25695.87 (raw=25695.87, 21.6s)
+    [frac-sb] refine k=5 confirm wip i=29 W=0.5000 le0 y_min=1284.794
+  BP [5/8000] node 3 depth=2 LB=25695.87 branch wip i=29 W=0.5000 le0 strategy=frac_sb (21.6s)
+  BP [6/8000] node 8 depth=3 partial-CG LB=25458.76 (raw=25458.76, 20.5s)
+    [frac-sb] refine k=5 confirm wip i=6 W=0.4919 le0 y_min=1272.938
+  BP [6/8000] node 8 depth=3 LB=25458.76 branch wip i=6 W=0.4919 le0 strategy=frac_sb (20.5s)
+    [frac-sb] refine k=5 confirm Y(4, 2, 18)=0.5469 y_min=1282.541
+  BP [7/8000] node 7 depth=3 LB=25650.81 branch Y(4, 2, 18)=0.5469 strategy=frac_sb (14.1s)
+  BP [8/8000] node 11 depth=4 partial-CG LB=25458.76 (raw=23485.17, 9.2s)
+    [frac-sb] refine k=5 confirm wip i=40 W=0.5157 le0 y_min=1272.938
+  BP [8/8000] node 11 depth=4 LB=25458.76 branch wip i=40 W=0.5157 le0 strategy=frac_sb (9.2s)
+  BP [9/8000] node 15 depth=5 partial-CG LB=25458.76 (raw=23147.99, 9.1s)
+    [frac-sb] refine k=5 confirm wip i=28 W=0.5198 le0 y_min=1272.938
+  BP [9/8000] node 15 depth=5 LB=25458.76 branch wip i=28 W=0.5198 le0 strategy=frac_sb (9.1s)
+  BP [10/8000] node 17 depth=6 partial-CG LB=25458.76 (raw=24311.79, 9.5s)
+    [frac-sb] refine k=5 confirm Y(2, 1, 8)=0.4873 y_min=1272.938
+  BP [10/8000] node 17 depth=6 LB=25458.76 branch Y(2, 1, 8)=0.4873 strategy=frac_sb (9.5s)
+  BP [11/8000] node 20 depth=7 partial-CG LB=25463.45 (raw=25463.45, 12.2s)
+    [frac-sb] refine k=5 confirm Y(4, 2, 18)=0.4973 y_min=1273.172
+  BP [11/8000] node 20 depth=7 LB=25463.45 branch Y(4, 2, 18)=0.4973 strategy=frac_sb (12.2s)
+    [frac-sb] refine k=5 confirm Y(4, 2, 18)=0.5000 y_min=1276.236
+  BP [12/8000] node 12 depth=4 LB=25524.72 branch Y(4, 2, 18)=0.5000 strategy=frac_sb (30.4s)
+    [frac-sb] refine k=5 confirm Y(4, 4, 4)=0.5000 y_min=1277.098
+  BP [13/8000] node 16 depth=5 LB=25541.96 branch Y(4, 4, 4)=0.5000 strategy=frac_sb (14.8s)
+    [frac-sb] refine k=5 confirm Y(3, 3, 16)=0.5140 y_min=1282.220
+  BP [14/8000] node 18 depth=6 LB=25644.39 branch Y(3, 3, 16)=0.5140 strategy=frac_sb (29.3s)
+  BP [15/8000] node 19 depth=7 partial-CG LB=25723.47 (raw=25723.47, 12.5s)
+    [frac-sb] refine k=5 confirm Y(4, 0, 5)=0.4943 y_min=1286.174
+  BP [15/8000] node 19 depth=7 LB=25723.47 branch Y(4, 0, 5)=0.4943 strategy=frac_sb (12.5s)
+  BP [16/8000] node 22 kind=setup depth=8 CG failed (used=8.2s, limit=8.0); retry#1/2 next_budget=60s (remain=3216s)
+    [frac-sb] refine k=5 confirm wip i=48 W=0.5000 le0 y_min=1296.854
+  BP [17/8000] node 22 depth=8 LB=25937.09 branch wip i=48 W=0.5000 le0 strategy=frac_sb (26.8s)
+  BP [18/8000] node 21 depth=8 partial-CG LB=25463.45 (raw=15906.49, 7.8s)
+    [CGFO node] incumbent=26289.10 (depth=8, budget=20s)
+    [frac-sb] refine k=5 confirm Y(2, 3, 24)=0.4897 y_min=1273.172
+  BP [18/8000] node 21 depth=8 LB=25463.45 branch Y(2, 3, 24)=0.4897 strategy=frac_sb (7.8s)
+  BP [19/8000] node 34 kind=setup depth=9 CG failed (used=7.7s, limit=8.0); retry#1/2 next_budget=60s (remain=3167s)
+    [frac-sb] refine k=5 confirm Y(2, 3, 25)=0.4859 y_min=1308.220
+  BP [20/8000] node 34 depth=9 LB=26164.40 branch Y(2, 3, 25)=0.4859 strategy=frac_sb (23.9s)
+  BP [21/8000] node 33 depth=9 partial-CG LB=25463.45 (raw=23560.90, 6.2s)
+    [frac-sb] refine k=5 confirm Y(0, 0, 9)=0.5000 y_min=1273.172
+  BP [21/8000] node 33 depth=9 LB=25463.45 branch Y(0, 0, 9)=0.5000 strategy=frac_sb (6.2s)
+  BP [22/8000] node 38 depth=10 partial-CG LB=25463.45 (raw=13331.92, 5.5s)
+    [frac-sb] refine k=5 confirm wip i=9 W=0.5266 le0 y_min=1273.172
+  BP [22/8000] node 38 depth=10 LB=25463.45 branch wip i=9 W=0.5266 le0 strategy=frac_sb (5.5s)
+  BP [23/8000] node 39 depth=11 partial-CG LB=25463.45 (raw=23763.32, 6.3s)
+    [frac-sb] refine k=5 confirm Y(4, 1, 6)=0.4633 y_min=1273.172
+  BP [23/8000] node 39 depth=11 LB=25463.45 branch Y(4, 1, 6)=0.4633 strategy=frac_sb (6.3s)
+  BP [24/8000] node 42 depth=12 partial-CG LB=25463.45 (raw=24736.34, 6.8s)
+    [frac-sb] refine k=5 confirm Y(4, 1, 5)=0.4200 y_min=1273.172
+  BP [24/8000] node 42 depth=12 LB=25463.45 branch Y(4, 1, 5)=0.4200 strategy=frac_sb (6.8s)
+  BP [25/8000] node 44 depth=13 partial-CG LB=25758.35 (raw=25758.35, 8.5s)
+    [frac-sb] refine k=5 confirm wip i=27 W=0.4948 le0 y_min=1287.917
+  BP [25/8000] node 44 depth=13 LB=25758.35 branch wip i=27 W=0.4948 le0 strategy=frac_sb (8.5s)
+  BP [26/8000] node 37 depth=10 partial-CG LB=25463.45 (raw=25076.29, 6.5s)
+  BP [27/8000] node 40 kind=wip_ge_lazy depth=11 pruned (Lagrangian LB ≥ 当前最好可行解, 20.4s)
+  BP [28/8000] node 41 depth=12 partial-CG LB=25463.45 (raw=8016.17, 5.2s)
+    [frac-sb] refine k=5 confirm Y(0, 0, 10)=0.5000 y_min=1273.172
+  BP [28/8000] node 41 depth=12 LB=25463.45 branch Y(0, 0, 10)=0.5000 strategy=frac_sb (5.2s)
+  BP [29/8000] node 48 depth=13 partial-CG LB=25463.45 (raw=15629.45, 4.9s)
+    [frac-sb] refine k=5 confirm Y(0, 0, 11)=0.4624 y_min=1273.172
+  BP [29/8000] node 48 depth=13 LB=25463.45 branch Y(0, 0, 11)=0.4624 strategy=frac_sb (4.9s)
+  BP [30/8000] node 50 depth=14 partial-CG LB=25805.21 (raw=25805.21, 6.2s)
+    [frac-sb] refine k=5 confirm Y(4, 0, 17)=0.4000 y_min=1290.261
+  BP [30/8000] node 50 depth=14 LB=25805.21 branch Y(4, 0, 17)=0.4000 strategy=frac_sb (6.2s)
+  BP [31/8000] node 43 kind=setup depth=13 CG failed (used=5.0s, limit=8.0); retry#1/2 next_budget=60s (remain=3035s)
+  BP [32/8000] node 43 kind=setup depth=13 pruned (Lagrangian LB ≥ 当前最好可行解, 7.8s)
+  BP [33/8000] node 47 depth=13 partial-CG LB=25463.45 (raw=-18767.50, 4.1s)
+    [frac-sb] refine k=5 confirm wip i=29 W=0.5625 le0 y_min=1273.172
+  BP [33/8000] node 47 depth=13 LB=25463.45 branch wip i=29 W=0.5625 le0 strategy=frac_sb (4.1s)
+  BP [34/8000] node 53 depth=14 partial-CG LB=25463.45 (raw=688.01, 4.2s)
+    [frac-sb] refine k=5 confirm wip i=4 W=0.5556 le0 y_min=1273.172
+  BP [34/8000] node 53 depth=14 LB=25463.45 branch wip i=4 W=0.5556 le0 strategy=frac_sb (4.2s)
+  BP [35/8000] node 55 kind=wip depth=15 pruned (Lagrangian LB ≥ 当前最好可行解, 4.5s)
+  BP [36/8000] node 49 depth=14 partial-CG LB=25463.45 (raw=-28327.90, 3.9s)
+    [frac-sb] refine k=5 confirm wip i=17 W=0.6667 le0 y_min=1273.172
+  BP [36/8000] node 49 depth=14 LB=25463.45 branch wip i=17 W=0.6667 le0 strategy=frac_sb (3.9s)
+  BP [37/8000] node 57 depth=15 partial-CG LB=25463.45 (raw=-206.62, 4.9s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 5)=0.4000 y_min=1273.172
+  BP [37/8000] node 57 depth=15 LB=25463.45 branch Y(0, 2, 5)=0.4000 strategy=frac_sb (4.9s)
+  BP [38/8000] node 60 kind=setup depth=16 CG failed (used=4.3s, limit=8.0); retry#1/2 next_budget=60s (remain=2991s)
+  BP [39/8000] node 60 kind=setup depth=16 pruned (Lagrangian LB ≥ 当前最好可行解, 5.0s)
+  BP [40/8000] node 54 kind=wip_ge_lazy depth=14 pruned (Lagrangian LB ≥ 当前最好可行解, 5.7s)
+  BP [41/8000] node 56 kind=wip_ge_lazy depth=15 pruned (Lagrangian LB ≥ 当前最好可行解, 10.8s)
+  BP [42/8000] node 58 kind=wip_ge_lazy depth=15 pruned (Lagrangian LB ≥ 当前最好可行解, 4.9s)
+  BP [43/8000] node 59 kind=setup depth=16 infeasible (6.3s)
+  BP [44/8000] node 24 kind=setup depth=5 CG failed (used=8.6s, limit=12.0); retry#1/2 next_budget=60s (remain=2950s)
+    [frac-sb] refine k=5 confirm Y(4, 4, 4)=0.5046 y_min=1282.141
+  BP [45/8000] node 24 depth=5 LB=25642.82 branch Y(4, 4, 4)=0.5046 strategy=frac_sb (16.9s)
+  BP [46/8000] node 23 depth=5 partial-CG LB=25524.72 (raw=15036.62, 8.3s)
+    [frac-sb] refine k=5 confirm wip i=40 W=0.5023 le0 y_min=1276.236
+  BP [46/8000] node 23 depth=5 LB=25524.72 branch wip i=40 W=0.5023 le0 strategy=frac_sb (8.3s)
+  BP [47/8000] node 63 kind=wip depth=6 CG failed (used=7.7s, limit=12.0); retry#1/2 next_budget=60s (remain=2910s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 5)=0.4940 y_min=1293.786
+  BP [48/8000] node 63 depth=6 LB=25875.72 branch Y(0, 2, 5)=0.4940 strategy=frac_sb (32.7s)
+    [frac-sb] refine k=5 confirm wip i=7 W=0.5009 le0 y_min=1293.747
+  BP [49/8000] node 64 depth=6 LB=25874.95 branch wip i=7 W=0.5009 le0 strategy=frac_sb (26.5s)
+  BP [50/8000] node 26 kind=setup depth=6 CG failed (used=7.4s, limit=12.0); retry#1/2 next_budget=60s (remain=2837s)
+    [frac-sb] refine k=5 confirm Y(2, 4, 8)=0.4896 y_min=1282.601
+  BP [51/8000] node 26 depth=6 LB=25652.01 branch Y(2, 4, 8)=0.4896 strategy=frac_sb (17.8s)
+  BP [52/8000] node 25 depth=6 partial-CG LB=25964.84 (raw=25964.84, 12.9s)
+    [frac-sb] refine k=5 confirm wip i=48 W=0.5343 le0 y_min=1298.242
+  BP [52/8000] node 25 depth=6 LB=25964.84 branch wip i=48 W=0.5343 le0 strategy=frac_sb (12.9s)
+  BP [53/8000] node 62 kind=setup depth=6 CG failed (used=8.1s, limit=12.0); retry#1/2 next_budget=60s (remain=2791s)
+    [frac-sb] refine k=5 confirm scrap i=3 R=0.4767 y_min=1288.348
+  BP [54/8000] node 62 depth=6 LB=25766.96 branch scrap i=3 R=0.4767 strategy=frac_sb (19.0s)
+  BP [55/8000] node 61 depth=6 partial-CG LB=25901.11 (raw=25901.11, 12.6s)
+    [frac-sb] refine k=5 confirm Y(1, 3, 8)=0.4908 y_min=1295.056
+  BP [55/8000] node 61 depth=6 LB=25901.11 branch Y(1, 3, 8)=0.4908 strategy=frac_sb (12.6s)
+  BP [56/8000] node 28 kind=setup depth=7 CG failed (used=9.5s, limit=12.0); retry#1/2 next_budget=60s (remain=2742s)
+    [frac-sb] refine k=5 confirm Y(4, 0, 5)=0.5355 y_min=1286.168
+  BP [57/8000] node 28 depth=7 LB=25723.36 branch Y(4, 0, 5)=0.5355 strategy=frac_sb (18.9s)
+  BP [58/8000] node 27 depth=7 partial-CG LB=25644.39 (raw=25211.65, 9.1s)
+    [frac-sb] refine k=5 confirm scrap i=19 R=0.4996 y_min=1282.220
+  BP [58/8000] node 27 depth=7 LB=25644.39 branch scrap i=19 R=0.4996 strategy=frac_sb (9.1s)
+  BP [59/8000] node 79 depth=8 partial-CG LB=25644.39 (raw=24416.41, 7.4s)
+    [frac-sb] refine k=5 confirm Y(4, 1, 5)=0.5047 y_min=1282.220
+  BP [59/8000] node 79 depth=8 LB=25644.39 branch Y(4, 1, 5)=0.5047 strategy=frac_sb (7.4s)
+  BP [60/8000] node 82 depth=9 partial-CG LB=25644.39 (raw=24054.11, 7.0s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 10)=0.4974 y_min=1282.220
+  BP [60/8000] node 82 depth=9 LB=25644.39 branch Y(3, 1, 10)=0.4974 strategy=frac_sb (7.0s)
+  BP [61/8000] node 84 kind=setup depth=10 CG failed (used=6.4s, limit=8.0); retry#1/2 next_budget=60s (remain=2680s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 16)=0.4886 y_min=1302.831
+  BP [62/8000] node 84 depth=10 LB=26056.63 branch Y(3, 1, 16)=0.4886 strategy=frac_sb (19.7s)
+    [frac-sb] refine k=5 confirm Y(0, 4, 16)=0.5419 y_min=1301.395
+  BP [63/8000] node 80 depth=8 LB=26027.90 branch Y(0, 4, 16)=0.5419 strategy=frac_sb (15.3s)
+  BP [64/8000] node 81 depth=9 partial-CG LB=25644.39 (raw=24954.87, 7.9s)
+    [frac-sb] refine k=5 confirm wip i=48 W=0.5069 le0 y_min=1282.220
+  BP [64/8000] node 81 depth=9 LB=25644.39 branch wip i=48 W=0.5069 le0 strategy=frac_sb (7.9s)
+  BP [65/8000] node 89 depth=10 partial-CG LB=25644.39 (raw=22514.68, 6.6s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 23)=0.5192 y_min=1282.220
+  BP [65/8000] node 89 depth=10 LB=25644.39 branch Y(0, 3, 23)=0.5192 strategy=frac_sb (6.6s)
+  BP [66/8000] node 92 kind=setup depth=11 CG failed (used=6.2s, limit=8.0); retry#1/2 next_budget=60s (remain=2614s)
+  BP [67/8000] node 92 kind=setup depth=11 pruned (Lagrangian LB ≥ 当前最好可行解, 8.8s)
+  BP [68/8000] node 83 depth=10 partial-CG LB=25644.39 (raw=8079.67, 6.0s)
+    [frac-sb] refine k=5 confirm scrap i=48 R=0.5394 y_min=1282.220
+  BP [68/8000] node 83 depth=10 LB=25644.39 branch scrap i=48 R=0.5394 strategy=frac_sb (6.0s)
+  BP [69/8000] node 93 depth=11 partial-CG LB=25644.39 (raw=24749.78, 8.3s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 24)=0.5100 y_min=1282.220
+  BP [69/8000] node 93 depth=11 LB=25644.39 branch Y(2, 0, 24)=0.5100 strategy=frac_sb (8.3s)
+  BP [70/8000] node 96 depth=12 partial-CG LB=25644.39 (raw=24816.69, 6.7s)
+    [frac-sb] refine k=5 confirm Y(1, 4, 17)=0.5212 y_min=1282.220
+  BP [70/8000] node 96 depth=12 LB=25644.39 branch Y(1, 4, 17)=0.5212 strategy=frac_sb (6.7s)
+  BP [71/8000] node 98 depth=13 partial-CG LB=25837.00 (raw=25837.00, 8.3s)
+    [frac-sb] refine k=5 confirm Y(1, 4, 24)=0.5056 y_min=1291.850
+  BP [71/8000] node 98 depth=13 LB=25837.00 branch Y(1, 4, 24)=0.5056 strategy=frac_sb (8.3s)
+  BP [72/8000] node 90 kind=wip_ge_lazy depth=10 pruned (Lagrangian LB ≥ 当前最好可行解, 20.1s)
+  BP [73/8000] node 91 depth=11 partial-CG LB=26057.58 (raw=26057.58, 8.3s)
+    [frac-sb] refine k=5 confirm scrap i=12 R=0.5278 y_min=1302.879
+  BP [73/8000] node 91 depth=11 LB=26057.58 branch scrap i=12 R=0.5278 strategy=frac_sb (8.3s)
+  BP [74/8000] node 94 kind=scrap_r0_lazy depth=11 pruned (Lagrangian LB ≥ 当前最好可行解, 13.1s)
+  BP [75/8000] node 95 depth=12 partial-CG LB=25668.67 (raw=25668.67, 6.7s)
+    [frac-sb] refine k=5 confirm Y(1, 4, 17)=0.5037 y_min=1283.434
+  BP [75/8000] node 95 depth=12 LB=25668.67 branch Y(1, 4, 17)=0.5037 strategy=frac_sb (6.7s)
+  BP [76/8000] node 97 kind=setup depth=13 pruned (Lagrangian LB ≥ 当前最好可行解, 4.4s)
+  BP [77/8000] node 14 depth=4 partial-CG LB=25650.81 (raw=25566.03, 9.9s)
+    [frac-sb] refine k=5 confirm wip i=34 W=0.4899 le0 y_min=1282.541
+  BP [77/8000] node 14 depth=4 LB=25650.81 branch wip i=34 W=0.4899 le0 strategy=frac_sb (9.9s)
+  BP [78/8000] node 105 kind=wip depth=5 CG failed (used=7.2s, limit=12.0); retry#1/2 next_budget=60s (remain=2486s)
+    [frac-sb] refine k=5 confirm Y(2, 4, 26)=0.5000 y_min=1292.397
+  BP [79/8000] node 105 depth=5 LB=25847.93 branch Y(2, 4, 26)=0.5000 strategy=frac_sb (18.7s)
+  BP [80/8000] node 13 depth=4 partial-CG LB=26054.90 (raw=26054.90, 12.5s)
+    [frac-sb] refine k=5 confirm Y(2, 1, 22)=0.4983 y_min=1302.745
+  BP [80/8000] node 13 depth=4 LB=26054.90 branch Y(2, 1, 22)=0.4983 strategy=frac_sb (12.5s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 5)=0.4653 y_min=1287.144
+  BP [81/8000] node 106 depth=5 LB=25742.89 branch Y(0, 2, 5)=0.4653 strategy=frac_sb (12.3s)
+  BP [82/8000] node 70 depth=7 partial-CG LB=25652.01 (raw=25007.07, 8.7s)
+    [frac-sb] refine k=5 confirm Y(2, 1, 8)=0.5253 y_min=1282.601
+  BP [82/8000] node 70 depth=7 LB=25652.01 branch Y(2, 1, 8)=0.5253 strategy=frac_sb (8.7s)
+  BP [83/8000] node 114 kind=setup depth=8 CG failed (used=7.5s, limit=8.0); retry#1/2 next_budget=60s (remain=2413s)
+    [frac-sb] refine k=5 confirm Y(3, 3, 16)=0.4913 y_min=1286.726
+  BP [84/8000] node 114 depth=8 LB=25734.52 branch Y(3, 3, 16)=0.4913 strategy=frac_sb (24.1s)
+  BP [85/8000] node 69 depth=7 partial-CG LB=25798.96 (raw=25798.96, 13.0s)
+    [frac-sb] refine k=5 confirm scrap i=34 R=0.5482 y_min=1289.948
+  BP [85/8000] node 69 depth=7 LB=25798.96 branch scrap i=34 R=0.5482 strategy=frac_sb (13.0s)
+  BP [86/8000] node 113 depth=8 partial-CG LB=25652.01 (raw=22841.15, 7.0s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 7)=0.5140 y_min=1282.601
+  BP [86/8000] node 113 depth=8 LB=25652.01 branch Y(0, 2, 7)=0.5140 strategy=frac_sb (7.0s)
+  BP [87/8000] node 120 kind=setup depth=9 CG failed (used=6.1s, limit=8.0); retry#1/2 next_budget=60s (remain=2353s)
+    [frac-sb] refine k=5 confirm Y(1, 2, 10)=0.5289 y_min=1300.151
+  BP [88/8000] node 120 depth=9 LB=26003.01 branch Y(1, 2, 10)=0.5289 strategy=frac_sb (23.4s)
+  BP [89/8000] node 119 depth=9 partial-CG LB=25652.01 (raw=19984.16, 6.1s)
+    [frac-sb] refine k=5 confirm Y(1, 3, 8)=0.4913 y_min=1282.601
+  BP [89/8000] node 119 depth=9 LB=25652.01 branch Y(1, 3, 8)=0.4913 strategy=frac_sb (6.1s)
+  BP [90/8000] node 124 kind=setup depth=10 CG failed (used=5.2s, limit=8.0); retry#1/2 next_budget=60s (remain=2311s)
+    [frac-sb] refine k=5 confirm scrap i=50 R=0.5033 y_min=1311.966
+  BP [91/8000] node 124 depth=10 LB=26239.31 branch scrap i=50 R=0.5033 strategy=frac_sb (20.6s)
+  BP [92/8000] node 123 depth=10 partial-CG LB=25652.01 (raw=24829.96, 4.9s)
+    [frac-sb] refine k=5 confirm Y(0, 1, 16)=0.5000 y_min=1282.601
+  BP [92/8000] node 123 depth=10 LB=25652.01 branch Y(0, 1, 16)=0.5000 strategy=frac_sb (4.9s)
+  BP [93/8000] node 128 depth=11 partial-CG LB=26269.56 (raw=26269.56, 6.2s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 16)=0.5050 y_min=1313.478
+  BP [93/8000] node 128 depth=11 LB=26269.56 branch Y(3, 1, 16)=0.5050 strategy=frac_sb (6.2s)
+  BP [94/8000] node 127 depth=11 partial-CG LB=25652.01 (raw=23764.21, 5.3s)
+    [frac-sb] refine k=5 confirm wip i=49 W=0.4953 le0 y_min=1282.601
+  BP [94/8000] node 127 depth=11 LB=25652.01 branch wip i=49 W=0.4953 le0 strategy=frac_sb (5.3s)
+  BP [95/8000] node 131 depth=12 partial-CG LB=25652.01 (raw=24112.23, 4.7s)
+    [frac-sb] refine k=5 confirm wip i=19 W=0.5106 le0 y_min=1282.601
+  BP [95/8000] node 131 depth=12 LB=25652.01 branch wip i=19 W=0.5106 le0 strategy=frac_sb (4.7s)
+  BP [96/8000] node 133 kind=wip depth=13 pruned (Lagrangian LB ≥ 当前最好可行解, 7.0s)
+  BP [97/8000] node 132 kind=wip_ge_lazy depth=12 pruned (Lagrangian LB ≥ 当前最好可行解, 7.3s)
+  BP [98/8000] node 134 kind=wip_ge_lazy depth=13 pruned (Lagrangian LB ≥ 当前最好可行解, 4.8s)
+  BP [99/8000] node 104 kind=setup depth=13 pruned (Lagrangian LB ≥ 当前最好可行解, 7.2s)
+  BP [100/8000] node 103 kind=setup depth=13 pruned (Lagrangian LB ≥ 当前最好可行解, 2.9s)
+  BP [101/8000] node 9 kind=wip depth=3 pruned (Lagrangian LB ≥ 当前最好可行解, 13.7s)
+    [frac-sb] refine k=5 confirm Y(1, 3, 8)=0.5000 y_min=1286.007
+  BP [102/8000] node 10 depth=3 LB=25720.14 branch Y(1, 3, 8)=0.5000 strategy=frac_sb (14.8s)
+  BP [103/8000] node 136 kind=setup depth=4 CG failed (used=6.7s, limit=12.0); retry#1/2 next_budget=60s (remain=2186s)
+    [frac-sb] refine k=5 confirm Y(4, 3, 6)=0.5133 y_min=1300.276
+  BP [104/8000] node 136 depth=4 LB=26005.53 branch Y(4, 3, 6)=0.5133 strategy=frac_sb (27.6s)
+  BP [105/8000] node 135 kind=setup depth=4 CG failed (used=6.0s, limit=12.0); retry#1/2 next_budget=60s (remain=2149s)
+    [frac-sb] refine k=5 confirm wip i=49 W=0.5076 le0 y_min=1312.026
+  BP [106/8000] node 135 depth=4 LB=26240.52 branch wip i=49 W=0.5076 le0 strategy=frac_sb (17.1s)
+  BP [107/8000] node 78 kind=setup depth=8 CG failed (used=9.1s, limit=8.0); retry#1/2 next_budget=60s (remain=2119s)
+    [frac-sb] refine k=5 confirm Y(2, 3, 24)=0.5133 y_min=1289.730
+  BP [108/8000] node 78 depth=8 LB=25794.61 branch Y(2, 3, 24)=0.5133 strategy=frac_sb (31.1s)
+  BP [109/8000] node 77 depth=8 partial-CG LB=25723.36 (raw=11520.50, 8.1s)
+    [frac-sb] refine k=5 confirm Y(2, 4, 8)=0.4988 y_min=1286.168
+  BP [109/8000] node 77 depth=8 LB=25723.36 branch Y(2, 4, 8)=0.4988 strategy=frac_sb (8.1s)
+  BP [110/8000] node 144 depth=9 partial-CG LB=25723.36 (raw=23403.55, 7.8s)
+    [frac-sb] refine k=5 confirm Y(1, 0, 25)=0.4718 y_min=1286.168
+  BP [110/8000] node 144 depth=9 LB=25723.36 branch Y(1, 0, 25)=0.4718 strategy=frac_sb (7.8s)
+  BP [111/8000] node 146 kind=setup depth=10 CG failed (used=6.9s, limit=8.0); retry#1/2 next_budget=60s (remain=2055s)
+  BP [112/8000] node 146 kind=setup depth=10 pruned (Lagrangian LB ≥ 当前最好可行解, 26.2s)
+  BP [113/8000] node 143 depth=9 partial-CG LB=26280.35 (raw=26280.35, 8.6s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 23)=0.5298 y_min=1314.017
+  BP [113/8000] node 143 depth=9 LB=26280.35 branch Y(2, 0, 23)=0.5298 strategy=frac_sb (8.6s)
+  BP [114/8000] node 145 depth=10 partial-CG LB=25723.36 (raw=21469.48, 8.1s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 15)=0.4971 y_min=1286.168
+  BP [114/8000] node 145 depth=10 LB=25723.36 branch Y(2, 0, 15)=0.4971 strategy=frac_sb (8.1s)
+  BP [115/8000] node 150 depth=11 partial-CG LB=25723.36 (raw=22695.83, 8.2s)
+    [frac-sb] refine k=5 confirm Y(1, 3, 17)=0.5063 y_min=1286.168
+  BP [115/8000] node 150 depth=11 LB=25723.36 branch Y(1, 3, 17)=0.5063 strategy=frac_sb (8.2s)
+  BP [116/8000] node 152 kind=setup depth=12 CG failed (used=6.9s, limit=8.0); retry#1/2 next_budget=60s (remain=1988s)
+  BP [117/8000] node 152 kind=setup depth=12 pruned (Lagrangian LB ≥ 当前最好可行解, 21.3s)
+  BP [118/8000] node 149 depth=11 partial-CG LB=25723.36 (raw=24589.29, 8.8s)
+    [frac-sb] refine k=5 confirm Y(2, 4, 22)=0.5246 y_min=1286.168
+  BP [118/8000] node 149 depth=11 LB=25723.36 branch Y(2, 4, 22)=0.5246 strategy=frac_sb (8.8s)
+  BP [119/8000] node 154 depth=12 partial-CG LB=25723.36 (raw=23810.92, 7.8s)
+    [frac-sb] refine k=5 confirm Y(0, 1, 17)=0.4960 y_min=1286.168
+  BP [119/8000] node 154 depth=12 LB=25723.36 branch Y(0, 1, 17)=0.4960 strategy=frac_sb (7.8s)
+  BP [120/8000] node 156 depth=13 partial-CG LB=25742.73 (raw=25742.73, 8.4s)
+    [frac-sb] refine k=5 confirm Y(4, 1, 21)=0.4927 y_min=1287.136
+  BP [120/8000] node 156 depth=13 LB=25742.73 branch Y(4, 1, 21)=0.4927 strategy=frac_sb (8.4s)
+  BP [121/8000] node 151 depth=12 partial-CG LB=25723.36 (raw=24635.02, 8.7s)
+    [frac-sb] refine k=5 confirm wip i=35 W=0.4944 le0 y_min=1286.168
+  BP [121/8000] node 151 depth=12 LB=25723.36 branch wip i=35 W=0.4944 le0 strategy=frac_sb (8.7s)
+  BP [122/8000] node 159 depth=13 partial-CG LB=25748.51 (raw=25748.51, 6.5s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 11)=0.4785 y_min=1287.425
+  BP [122/8000] node 159 depth=13 LB=25748.51 branch Y(0, 3, 11)=0.4785 strategy=frac_sb (6.5s)
+  BP [123/8000] node 153 depth=12 partial-CG LB=25853.48 (raw=25853.48, 8.0s)
+    [frac-sb] refine k=5 confirm Y(3, 3, 28)=0.5000 y_min=1292.674
+  BP [123/8000] node 153 depth=12 LB=25853.48 branch Y(3, 3, 28)=0.5000 strategy=frac_sb (8.0s)
+  BP [124/8000] node 155 depth=13 partial-CG LB=26154.43 (raw=26154.43, 8.3s)
+    [frac-sb] refine k=5 confirm Y(4, 2, 18)=0.4525 y_min=1307.722
+  BP [124/8000] node 155 depth=13 LB=26154.43 branch Y(4, 2, 18)=0.4525 strategy=frac_sb (8.3s)
+  BP [125/8000] node 160 kind=wip_ge_lazy depth=13 pruned (Lagrangian LB ≥ 当前最好可行解, 7.8s)
+  BP [126/8000] node 30 kind=setup depth=8 CG failed (used=7.9s, limit=8.0); retry#1/2 next_budget=60s (remain=1874s)
+    [frac-sb] refine k=5 confirm Y(4, 2, 18)=0.5067 y_min=1301.540
+  BP [127/8000] node 30 depth=8 LB=26030.80 branch Y(4, 2, 18)=0.5067 strategy=frac_sb (20.0s)
+  BP [128/8000] node 29 depth=8 partial-CG LB=25723.47 (raw=25638.41, 9.0s)
+    [frac-sb] refine k=5 confirm Y(3, 2, 18)=0.5075 y_min=1286.174
+  BP [128/8000] node 29 depth=8 LB=25723.47 branch Y(3, 2, 18)=0.5075 strategy=frac_sb (9.0s)
+  BP [129/8000] node 170 kind=setup depth=9 CG failed (used=7.1s, limit=8.0); retry#1/2 next_budget=60s (remain=1831s)
+  BP [130/8000] node 170 kind=setup depth=9 pruned (Lagrangian LB ≥ 当前最好可行解, 11.3s)
+  BP [131/8000] node 169 depth=9 partial-CG LB=25723.47 (raw=-4285.32, 6.9s)
+    [frac-sb] refine k=5 confirm scrap i=15 R=0.4784 y_min=1286.174
+  BP [131/8000] node 169 depth=9 LB=25723.47 branch scrap i=15 R=0.4784 strategy=frac_sb (6.9s)
+  BP [132/8000] node 171 depth=10 partial-CG LB=25723.47 (raw=24940.54, 9.1s)
+    [frac-sb] refine k=5 confirm Y(2, 3, 25)=0.4886 y_min=1286.174
+  BP [132/8000] node 171 depth=10 LB=25723.47 branch Y(2, 3, 25)=0.4886 strategy=frac_sb (9.1s)
+  BP [133/8000] node 174 depth=11 partial-CG LB=25723.47 (raw=20005.86, 7.1s)
+    [frac-sb] refine k=5 confirm wip i=41 W=0.3714 le0 y_min=1286.174
+  BP [133/8000] node 174 depth=11 LB=25723.47 branch wip i=41 W=0.3714 le0 strategy=frac_sb (7.1s)
+  BP [134/8000] node 175 depth=12 partial-CG LB=25854.84 (raw=25854.84, 8.4s)
+    [frac-sb] refine k=5 confirm Y(4, 4, 10)=0.7500 y_min=1292.742
+  BP [134/8000] node 175 depth=12 LB=25854.84 branch Y(4, 4, 10)=0.7500 strategy=frac_sb (8.4s)
+  BP [135/8000] node 172 kind=scrap_r0_lazy depth=10 pruned (Lagrangian LB ≥ 当前最好可行解, 13.8s)
+  BP [136/8000] node 173 kind=setup depth=11 pruned (Lagrangian LB ≥ 当前最好可行解, 7.0s)
+  BP [137/8000] node 176 kind=wip_ge_lazy depth=12 pruned (Lagrangian LB ≥ 当前最好可行解, 16.1s)
+  BP [138/8000] node 116 kind=setup depth=9 CG failed (used=7.7s, limit=8.0); retry#1/2 next_budget=60s (remain=1733s)
+    [frac-sb] refine k=5 confirm Y(4, 2, 18)=0.5051 y_min=1291.669
+  BP [139/8000] node 116 depth=9 LB=25833.37 branch Y(4, 2, 18)=0.5051 strategy=frac_sb (18.3s)
+  BP [140/8000] node 115 depth=9 partial-CG LB=25734.52 (raw=23285.15, 5.6s)
+    [frac-sb] refine k=5 confirm wip i=8 W=0.4955 le0 y_min=1286.726
+  BP [140/8000] node 115 depth=9 LB=25734.52 branch wip i=8 W=0.4955 le0 strategy=frac_sb (5.6s)
+  BP [141/8000] node 181 depth=10 partial-CG LB=25940.20 (raw=25940.20, 8.3s)
+    [frac-sb] refine k=5 confirm Y(2, 4, 9)=0.4892 y_min=1297.010
+  BP [141/8000] node 181 depth=10 LB=25940.20 branch Y(2, 4, 9)=0.4892 strategy=frac_sb (8.3s)
+    [frac-sb] refine k=5 confirm wip i=27 W=0.4938 le0 y_min=1301.459
+  BP [142/8000] node 182 depth=10 LB=26029.18 branch wip i=27 W=0.4938 le0 strategy=frac_sb (16.3s)
+  BP [143/8000] node 158 depth=14 partial-CG LB=25742.73 (raw=24800.68, 8.0s)
+    [frac-sb] refine k=5 confirm Y(4, 2, 18)=0.5000 y_min=1287.136
+  BP [143/8000] node 158 depth=14 LB=25742.73 branch Y(4, 2, 18)=0.5000 strategy=frac_sb (8.0s)
+  BP [144/8000] node 188 depth=15 partial-CG LB=25742.73 (raw=25581.17, 8.4s)
+    [frac-sb] refine k=5 confirm Y(1, 2, 10)=0.5060 y_min=1287.136
+  BP [144/8000] node 188 depth=15 LB=25742.73 branch Y(1, 2, 10)=0.5060 strategy=frac_sb (8.4s)
+  BP [145/8000] node 190 kind=setup depth=16 pruned (Lagrangian LB ≥ 当前最好可行解, 7.6s)
+  BP [146/8000] node 157 kind=setup depth=14 pruned (Lagrangian LB ≥ 当前最好可行解, 7.7s)
+  BP [147/8000] node 187 depth=15 partial-CG LB=26036.43 (raw=26036.43, 8.8s)
+    [frac-sb] refine k=5 confirm Y(1, 4, 10)=0.5000 y_min=1301.821
+  BP [147/8000] node 187 depth=15 LB=26036.43 branch Y(1, 4, 10)=0.5000 strategy=frac_sb (8.8s)
+  BP [148/8000] node 189 kind=setup depth=16 pruned (Lagrangian LB ≥ 当前最好可行解, 7.5s)
+  BP [149/8000] node 112 depth=6 partial-CG LB=25742.89 (raw=25723.74, 9.1s)
+    [frac-sb] refine k=5 confirm wip i=32 W=0.4684 le0 y_min=1287.144
+  BP [149/8000] node 112 depth=6 LB=25742.89 branch wip i=32 W=0.4684 le0 strategy=frac_sb (9.1s)
+  BP [150/8000] node 193 kind=wip depth=7 CG failed (used=7.3s, limit=12.0); retry#1/2 next_budget=60s (remain=1595s)
+    [frac-sb] refine k=5 confirm Y(2, 1, 22)=0.4998 y_min=1298.198
+  BP [151/8000] node 193 depth=7 LB=25963.96 branch Y(2, 1, 22)=0.4998 strategy=frac_sb (18.5s)
+    [frac-sb] refine k=5 confirm Y(0, 4, 14)=0.5000 y_min=1292.373
+  BP [152/8000] node 111 depth=6 LB=25847.47 branch Y(0, 4, 14)=0.5000 strategy=frac_sb (10.7s)
+    [frac-sb] refine k=5 confirm wip i=28 W=0.4956 le0 y_min=1288.779
+  BP [153/8000] node 194 depth=7 LB=25775.57 branch wip i=28 W=0.4956 le0 strategy=frac_sb (23.2s)
+  BP [154/8000] node 162 depth=14 partial-CG LB=25748.51 (raw=13074.21, 6.7s)
+    [frac-sb] refine k=5 confirm wip i=49 W=0.4899 le0 y_min=1287.425
+  BP [154/8000] node 162 depth=14 LB=25748.51 branch wip i=49 W=0.4899 le0 strategy=frac_sb (6.7s)
+  BP [155/8000] node 201 kind=wip depth=15 pruned (Lagrangian LB ≥ 当前最好可行解, 5.7s)
+  BP [156/8000] node 161 depth=14 partial-CG LB=26017.96 (raw=26017.96, 7.5s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 7)=0.5233 y_min=1300.898
+  BP [156/8000] node 161 depth=14 LB=26017.96 branch Y(0, 2, 7)=0.5233 strategy=frac_sb (7.5s)
+  BP [157/8000] node 202 kind=wip_ge_lazy depth=15 pruned (Lagrangian LB ≥ 当前最好可行解, 6.2s)
+  BP [158/8000] node 45 kind=wip depth=14 CG failed (used=6.1s, limit=8.0); retry#1/2 next_budget=60s (remain=1495s)
+  BP [159/8000] node 45 kind=wip depth=14 pruned (Lagrangian LB ≥ 当前最好可行解, 12.8s)
+  BP [160/8000] node 46 kind=wip_ge_lazy depth=14 pruned (Lagrangian LB ≥ 当前最好可行解, 10.4s)
+  BP [161/8000] node 73 kind=scrap depth=7 CG failed (used=8.7s, limit=12.0); retry#1/2 next_budget=60s (remain=1463s)
+    [frac-sb] refine k=5 confirm Y(4, 1, 16)=0.5000 y_min=1297.152
+  BP [162/8000] node 73 depth=7 LB=25943.03 branch Y(4, 1, 16)=0.5000 strategy=frac_sb (17.6s)
+    [frac-sb] refine k=5 confirm scrap i=32 R=0.5086 y_min=1291.541
+  BP [163/8000] node 74 depth=7 LB=25830.81 branch scrap i=32 R=0.5086 strategy=frac_sb (16.1s)
+  BP [164/8000] node 199 kind=wip depth=8 CG failed (used=8.2s, limit=8.0); retry#1/2 next_budget=60s (remain=1414s)
+    [frac-sb] refine k=5 confirm scrap i=7 R=0.4940 y_min=1291.500
+  BP [165/8000] node 199 depth=8 LB=25830.00 branch scrap i=7 R=0.4940 strategy=frac_sb (16.9s)
+    [frac-sb] refine k=5 confirm Y(0, 1, 16)=0.4869 y_min=1290.445
+  BP [166/8000] node 200 depth=8 LB=25808.90 branch Y(0, 1, 16)=0.4869 strategy=frac_sb (15.7s)
+  BP [167/8000] node 142 kind=setup depth=9 CG failed (used=8.2s, limit=8.0); retry#1/2 next_budget=60s (remain=1367s)
+    [frac-sb] refine k=5 confirm Y(4, 0, 6)=0.5639 y_min=1292.129
+  BP [168/8000] node 142 depth=9 LB=25842.59 branch Y(4, 0, 6)=0.5639 strategy=frac_sb (12.3s)
+  BP [169/8000] node 141 kind=setup depth=9 CG failed (used=6.9s, limit=8.0); retry#1/2 next_budget=60s (remain=1344s)
+    [frac-sb] refine k=5 confirm Y(2, 1, 8)=0.5077 y_min=1303.411
+  BP [170/8000] node 141 depth=9 LB=26068.23 branch Y(2, 1, 8)=0.5077 strategy=frac_sb (17.1s)
+  BP [171/8000] node 117 depth=8 partial-CG LB=25798.96 (raw=23239.37, 8.0s)
+    [frac-sb] refine k=5 confirm Y(0, 4, 16)=0.4902 y_min=1289.948
+  BP [171/8000] node 117 depth=8 LB=25798.96 branch Y(0, 4, 16)=0.4902 strategy=frac_sb (8.0s)
+  BP [172/8000] node 218 depth=9 partial-CG LB=25835.80 (raw=25835.80, 8.7s)
+    [frac-sb] refine k=5 confirm Y(4, 0, 5)=0.5122 y_min=1291.790
+  BP [172/8000] node 218 depth=9 LB=25835.80 branch Y(4, 0, 5)=0.5122 strategy=frac_sb (8.7s)
+    [frac-sb] refine k=5 confirm wip i=50 W=0.5169 le0 y_min=1294.473
+  BP [173/8000] node 118 depth=8 LB=25889.46 branch wip i=50 W=0.5169 le0 strategy=frac_sb (11.5s)
+  BP [174/8000] node 217 depth=9 partial-CG LB=25798.96 (raw=24989.25, 8.3s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 25)=0.5000 y_min=1289.948
+  BP [174/8000] node 217 depth=9 LB=25798.96 branch Y(2, 0, 25)=0.5000 strategy=frac_sb (8.3s)
+  BP [175/8000] node 224 depth=10 partial-CG LB=26045.17 (raw=26045.17, 8.6s)
+    [frac-sb] refine k=5 confirm Y(1, 2, 10)=0.4780 y_min=1302.259
+  BP [175/8000] node 224 depth=10 LB=26045.17 branch Y(1, 2, 10)=0.4780 strategy=frac_sb (8.6s)
+  BP [176/8000] node 223 depth=10 partial-CG LB=26242.70 (raw=26242.70, 8.4s)
+    [frac-sb] refine k=5 confirm Y(3, 3, 16)=0.5455 y_min=1312.135
+  BP [176/8000] node 223 depth=10 LB=26242.70 branch Y(3, 3, 16)=0.5455 strategy=frac_sb (8.4s)
+  BP [177/8000] node 52 kind=setup depth=15 CG failed (used=4.9s, limit=8.0); retry#1/2 next_budget=60s (remain=1246s)
+  BP [178/8000] node 52 kind=setup depth=15 pruned (Lagrangian LB ≥ 当前最好可行解, 7.8s)
+  BP [179/8000] node 51 kind=setup depth=15 infeasible (6.3s)
+  BP [180/8000] node 212 kind=setup depth=9 CG failed (used=8.0s, limit=8.0); retry#1/2 next_budget=60s (remain=1224s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 6)=0.5000 y_min=1306.802
+  BP [181/8000] node 212 depth=9 LB=26136.04 branch Y(0, 2, 6)=0.5000 strategy=frac_sb (22.1s)
+  BP [182/8000] node 211 kind=setup depth=9 CG failed (used=8.6s, limit=8.0); retry#1/2 next_budget=60s (remain=1191s)
+    [frac-sb] refine k=5 confirm wip i=48 W=0.4962 le0 y_min=1307.718
+  BP [183/8000] node 211 depth=9 LB=26154.35 branch wip i=48 W=0.4962 le0 strategy=frac_sb (38.5s)
+  BP [184/8000] node 209 kind=scrap depth=9 CG failed (used=8.6s, limit=8.0); retry#1/2 next_budget=60s (remain=1141s)
+    [frac-sb] refine k=5 confirm scrap i=48 R=0.5024 y_min=1296.717
+  BP [185/8000] node 209 depth=9 LB=25934.34 branch scrap i=48 R=0.5024 strategy=frac_sb (17.1s)
+    [frac-sb] refine k=5 confirm Y(2, 3, 25)=0.4966 y_min=1293.710
+  BP [186/8000] node 210 depth=9 LB=25874.20 branch Y(2, 3, 25)=0.4966 strategy=frac_sb (23.1s)
+  BP [187/8000] node 207 kind=scrap depth=8 CG failed (used=9.2s, limit=8.0); retry#1/2 next_budget=60s (remain=1084s)
+    [frac-sb] refine k=5 confirm wip i=34 W=0.5153 le0 y_min=1292.123
+  BP [188/8000] node 207 depth=8 LB=25842.46 branch wip i=34 W=0.5153 le0 strategy=frac_sb (13.1s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 18)=0.4933 y_min=1294.339
+  BP [189/8000] node 208 depth=8 LB=25886.79 branch Y(0, 3, 18)=0.4933 strategy=frac_sb (14.8s)
+  BP [190/8000] node 180 kind=setup depth=10 CG failed (used=8.2s, limit=8.0); retry#1/2 next_budget=60s (remain=1040s)
+    [frac-sb] refine k=5 confirm scrap i=49 R=0.5391 y_min=1294.136
+  BP [191/8000] node 180 depth=10 LB=25882.71 branch scrap i=49 R=0.5391 strategy=frac_sb (16.7s)
+  BP [192/8000] node 179 depth=10 partial-CG LB=25833.37 (raw=14870.17, 7.6s)
+    [frac-sb] refine k=5 confirm Y(2, 4, 26)=0.5180 y_min=1291.669
+  BP [192/8000] node 179 depth=10 LB=25833.37 branch Y(2, 4, 26)=0.5180 strategy=frac_sb (7.6s)
+  BP [193/8000] node 244 kind=setup depth=11 CG failed (used=6.9s, limit=8.0); retry#1/2 next_budget=60s (remain=1002s)
+    [frac-sb] refine k=5 confirm wip i=28 W=0.4897 le0 y_min=1306.831
+  BP [194/8000] node 244 depth=11 LB=26136.62 branch wip i=28 W=0.4897 le0 strategy=frac_sb (31.6s)
+  BP [195/8000] node 243 depth=11 partial-CG LB=25833.37 (raw=25413.13, 8.3s)
+    [frac-sb] refine k=5 confirm wip i=27 W=0.4811 le0 y_min=1291.669
+  BP [195/8000] node 243 depth=11 LB=25833.37 branch wip i=27 W=0.4811 le0 strategy=frac_sb (8.3s)
+  BP [196/8000] node 247 depth=12 partial-CG LB=25874.33 (raw=25874.33, 8.2s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 16)=0.4941 y_min=1293.716
+  BP [196/8000] node 247 depth=12 LB=25874.33 branch Y(0, 3, 16)=0.4941 strategy=frac_sb (8.2s)
+  BP [197/8000] node 248 kind=wip_ge_lazy depth=12 pruned (Lagrangian LB ≥ 当前最好可行解, 16.0s)
+  BP [198/8000] node 220 depth=10 partial-CG LB=26017.10 (raw=26017.10, 8.8s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 7)=0.5031 y_min=1300.855
+  BP [198/8000] node 220 depth=10 LB=26017.10 branch Y(3, 1, 7)=0.5031 strategy=frac_sb (8.8s)
+  BP [199/8000] node 219 depth=10 partial-CG LB=26220.50 (raw=26220.50, 8.4s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 7)=0.4996 y_min=1311.025
+  BP [199/8000] node 219 depth=10 LB=26220.50 branch Y(3, 1, 7)=0.4996 strategy=frac_sb (8.4s)
+  BP [200/8000] node 100 depth=14 partial-CG LB=25837.00 (raw=25236.45, 6.5s)
+    [frac-sb] refine k=5 confirm Y(1, 4, 23)=0.4444 y_min=1291.850
+  BP [200/8000] node 100 depth=14 LB=25837.00 branch Y(1, 4, 23)=0.4444 strategy=frac_sb (6.5s)
+  BP [201/8000] node 256 depth=15 partial-CG LB=26018.56 (raw=26018.56, 7.8s)
+    [frac-sb] refine k=5 confirm Y(2, 4, 8)=0.5244 y_min=1300.928
+  BP [201/8000] node 256 depth=15 LB=26018.56 branch Y(2, 4, 8)=0.5244 strategy=frac_sb (7.8s)
+  BP [202/8000] node 99 kind=setup depth=14 pruned (Lagrangian LB ≥ 当前最好可行解, 3.8s)
+  BP [203/8000] node 255 kind=setup depth=15 pruned (Lagrangian LB ≥ 当前最好可行解, 5.5s)
+  BP [204/8000] node 237 kind=wip depth=9 CG failed (used=8.7s, limit=8.0); retry#1/2 next_budget=60s (remain=868s)
+    [frac-sb] refine k=5 confirm Y(2, 1, 8)=0.4718 y_min=1297.723
+  BP [205/8000] node 237 depth=9 LB=25954.47 branch Y(2, 1, 8)=0.4718 strategy=frac_sb (20.7s)
+    [frac-sb] refine k=5 confirm wip i=50 W=0.4973 le0 y_min=1294.876
+  BP [206/8000] node 238 depth=9 LB=25897.52 branch wip i=50 W=0.4973 le0 strategy=frac_sb (17.7s)
+  BP [207/8000] node 214 kind=setup depth=10 CG failed (used=10.0s, limit=8.0); retry#1/2 next_budget=60s (remain=812s)
+    [frac-sb] refine k=5 confirm Y(4, 1, 5)=0.5136 y_min=1296.420
+  BP [208/8000] node 214 depth=10 LB=25928.40 branch Y(4, 1, 5)=0.5136 strategy=frac_sb (19.8s)
+  BP [209/8000] node 213 depth=10 partial-CG LB=25842.59 (raw=14227.31, 8.7s)
+    [frac-sb] refine k=5 confirm wip i=32 W=0.5067 le0 y_min=1292.129
+  BP [209/8000] node 213 depth=10 LB=25842.59 branch wip i=32 W=0.5067 le0 strategy=frac_sb (8.7s)
+  BP [210/8000] node 265 depth=11 partial-CG LB=25842.59 (raw=24430.15, 8.3s)
+    [frac-sb] refine k=5 confirm Y(1, 3, 8)=0.5278 y_min=1292.129
+  BP [210/8000] node 265 depth=11 LB=25842.59 branch Y(1, 3, 8)=0.5278 strategy=frac_sb (8.3s)
+  BP [211/8000] node 268 depth=12 partial-CG LB=25842.59 (raw=25108.06, 8.4s)
+    [frac-sb] refine k=5 confirm Y(2, 4, 8)=0.4881 y_min=1292.129
+  BP [211/8000] node 268 depth=12 LB=25842.59 branch Y(2, 4, 8)=0.4881 strategy=frac_sb (8.4s)
+  BP [212/8000] node 270 kind=setup depth=13 CG failed (used=7.3s, limit=8.0); retry#1/2 next_budget=60s (remain=745s)
+  BP [213/8000] node 270 kind=setup depth=13 pruned (Lagrangian LB ≥ 当前最好可行解, 13.6s)
+  BP [214/8000] node 266 kind=wip_ge_lazy depth=11 pruned (Lagrangian LB ≥ 当前最好可行解, 37.0s)
+  BP [215/8000] node 267 kind=setup depth=12 CG failed (used=7.0s, limit=8.0); retry#1/2 next_budget=60s (remain=687s)
+  BP [216/8000] node 267 kind=setup depth=12 pruned (Lagrangian LB ≥ 当前最好可行解, 9.3s)
+  BP [217/8000] node 269 depth=13 partial-CG LB=26211.53 (raw=26211.53, 8.5s)
+    [frac-sb] refine k=5 confirm Y(2, 4, 26)=0.4956 y_min=1310.576
+  BP [217/8000] node 269 depth=13 LB=26211.53 branch Y(2, 4, 26)=0.4956 strategy=frac_sb (8.5s)
+  BP [218/8000] node 5 depth=2 partial-CG LB=25902.14 (raw=25902.14, 20.4s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 26)=0.5000 y_min=1295.107
+  BP [218/8000] node 5 depth=2 LB=25902.14 branch Y(2, 0, 26)=0.5000 strategy=frac_sb (20.4s)
+    [frac-sb] refine k=5 confirm Y(2, 4, 28)=0.4838 y_min=1293.133
+  BP [219/8000] node 6 depth=2 LB=25862.66 branch Y(2, 4, 28)=0.4838 strategy=frac_sb (15.6s)
+  BP [220/8000] node 198 depth=7 partial-CG LB=25847.47 (raw=24627.29, 8.1s)
+    [frac-sb] refine k=5 confirm wip i=49 W=0.4941 le0 y_min=1292.373
+  BP [220/8000] node 198 depth=7 LB=25847.47 branch wip i=49 W=0.4941 le0 strategy=frac_sb (8.1s)
+  BP [221/8000] node 277 depth=8 partial-CG LB=25847.47 (raw=24492.52, 7.5s)
+    [frac-sb] refine k=5 confirm wip i=7 W=0.4778 le0 y_min=1292.373
+  BP [221/8000] node 277 depth=8 LB=25847.47 branch wip i=7 W=0.4778 le0 strategy=frac_sb (7.5s)
+  BP [222/8000] node 279 depth=9 partial-CG LB=25847.47 (raw=25453.18, 8.3s)
+    [frac-sb] refine k=5 confirm wip i=14 W=0.5000 le0 y_min=1292.373
+  BP [222/8000] node 279 depth=9 LB=25847.47 branch wip i=14 W=0.5000 le0 strategy=frac_sb (8.3s)
+  BP [223/8000] node 281 depth=10 partial-CG LB=25847.47 (raw=25656.86, 8.2s)
+    [frac-sb] refine k=5 confirm wip i=28 W=0.4783 le0 y_min=1292.373
+  BP [223/8000] node 281 depth=10 LB=25847.47 branch wip i=28 W=0.4783 le0 strategy=frac_sb (8.2s)
+  BP [224/8000] node 283 depth=11 partial-CG LB=25901.18 (raw=25901.18, 8.6s)
+    [frac-sb] refine k=5 confirm scrap i=41 R=0.5170 y_min=1295.059
+  BP [224/8000] node 283 depth=11 LB=25901.18 branch scrap i=41 R=0.5170 strategy=frac_sb (8.6s)
+  BP [225/8000] node 197 kind=setup depth=7 infeasible (8.1s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 18)=0.4838 y_min=1304.600
+  BP [226/8000] node 278 depth=8 LB=26092.01 branch Y(0, 3, 18)=0.4838 strategy=frac_sb (23.6s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 18)=0.5000 y_min=1301.896
+  BP [227/8000] node 280 depth=9 LB=26037.93 branch Y(0, 3, 18)=0.5000 strategy=frac_sb (12.1s)
+    [frac-sb] refine k=5 confirm Y(2, 4, 8)=0.5556 y_min=1307.404
+  BP [228/8000] node 282 depth=10 LB=26148.08 branch Y(2, 4, 8)=0.5556 strategy=frac_sb (17.7s)
+    [frac-sb] refine k=5 confirm wip i=48 W=0.4914 le0 y_min=1312.314
+  BP [229/8000] node 284 depth=11 LB=26246.27 branch wip i=48 W=0.4914 le0 strategy=frac_sb (20.6s)
+  BP [230/8000] node 108 depth=6 partial-CG LB=25895.96 (raw=25895.96, 13.4s)
+    [frac-sb] refine k=5 confirm wip i=6 W=0.5306 le0 y_min=1294.798
+  BP [230/8000] node 108 depth=6 LB=25895.96 branch wip i=6 W=0.5306 le0 strategy=frac_sb (13.4s)
+  BP [231/8000] node 107 depth=6 partial-CG LB=26072.92 (raw=26072.92, 12.9s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 5)=0.4907 y_min=1303.646
+  BP [231/8000] node 107 depth=6 LB=26072.92 branch Y(0, 2, 5)=0.4907 strategy=frac_sb (12.9s)
+  BP [232/8000] node 164 depth=13 partial-CG LB=26202.58 (raw=26202.58, 8.4s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 7)=0.6000 y_min=1310.129
+  BP [232/8000] node 164 depth=13 LB=26202.58 branch Y(3, 1, 7)=0.6000 strategy=frac_sb (8.4s)
+  BP [233/8000] node 163 kind=setup depth=13 pruned (Lagrangian LB ≥ 当前最好可行解, 5.1s)
+  BP [234/8000] node 178 depth=13 partial-CG LB=26177.60 (raw=26177.60, 8.5s)
+    [frac-sb] refine k=5 confirm Y(4, 4, 4)=0.2500 y_min=1308.880
+  BP [234/8000] node 178 depth=13 LB=26177.60 branch Y(4, 4, 4)=0.2500 strategy=frac_sb (8.5s)
+  BP [235/8000] node 177 kind=setup depth=13 pruned (Lagrangian LB ≥ 当前最好可行解, 4.4s)
+  BP [236/8000] node 276 depth=3 partial-CG LB=25955.01 (raw=25955.01, 21.3s)
+    [frac-sb] refine k=5 confirm Y(4, 4, 4)=0.5000 y_min=1297.750
+  BP [236/8000] node 276 depth=3 LB=25955.01 branch Y(4, 4, 4)=0.5000 strategy=frac_sb (21.3s)
+  BP [237/8000] node 275 depth=3 partial-CG LB=26061.75 (raw=26061.75, 20.8s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 26)=0.5385 y_min=1303.087
+  BP [237/8000] node 275 depth=3 LB=26061.75 branch Y(2, 0, 26)=0.5385 strategy=frac_sb (20.8s)
+  BP [238/8000] node 236 kind=setup depth=10 CG failed (used=9.0s, limit=8.0); retry#1/2 next_budget=60s (remain=350s)
+    [frac-sb] refine k=5 confirm Y(2, 4, 8)=0.5212 y_min=1294.876
+  BP [239/8000] node 236 depth=10 LB=25897.53 branch Y(2, 4, 8)=0.5212 strategy=frac_sb (23.1s)
+  BP [240/8000] node 235 kind=setup depth=10 CG failed (used=6.6s, limit=8.0); retry#1/2 next_budget=60s (remain=318s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 6)=0.4965 y_min=1312.731
+  BP [241/8000] node 235 depth=10 LB=26254.61 branch Y(0, 2, 6)=0.4965 strategy=frac_sb (18.0s)
+  BP [242/8000] node 250 kind=setup depth=13 pruned (Lagrangian LB ≥ 当前最好可行解, 8.5s)
+  BP [243/8000] node 249 kind=setup depth=13 pruned (Lagrangian LB ≥ 当前最好可行解, 4.6s)
+  BP [244/8000] node 67 kind=wip depth=7 CG failed (used=8.7s, limit=12.0); retry#1/2 next_budget=60s (remain=275s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 5)=0.5095 y_min=1297.200
+  BP [245/8000] node 67 depth=7 LB=25944.00 branch Y(0, 2, 5)=0.5095 strategy=frac_sb (17.4s)
+    [frac-sb] refine k=5 confirm scrap i=32 R=0.4954 y_min=1295.342
+  BP [246/8000] node 68 depth=7 LB=25906.84 branch scrap i=32 R=0.4954 strategy=frac_sb (18.9s)
+  BP [247/8000] node 66 kind=setup depth=7 CG failed (used=9.5s, limit=12.0); retry#1/2 next_budget=60s (remain=223s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 18)=0.5081 y_min=1294.460
+  BP [248/8000] node 66 depth=7 LB=25889.21 branch Y(0, 3, 18)=0.5081 strategy=frac_sb (15.3s)
+  BP [249/8000] node 65 depth=7 partial-CG LB=25875.72 (raw=25422.05, 12.9s)
+    [frac-sb] refine k=5 confirm wip i=49 W=0.5105 le0 y_min=1293.786
+  BP [249/8000] node 65 depth=7 LB=25875.72 branch wip i=49 W=0.5105 le0 strategy=frac_sb (12.9s)
+  BP [250/8000] node 317 kind=wip depth=8 CG failed (used=9.1s, limit=8.0); retry#1/2 next_budget=60s (remain=179s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 24)=0.4748 y_min=1301.958
+  BP [251/8000] node 317 depth=8 LB=26039.17 branch Y(2, 0, 24)=0.4748 strategy=frac_sb (27.5s)
+    [frac-sb] refine k=5 confirm Y(2, 1, 8)=0.4992 y_min=1305.424
+  BP [252/8000] node 318 depth=8 LB=26108.48 branch Y(2, 1, 8)=0.4992 strategy=frac_sb (29.7s)
+  BP [253/8000] node 241 depth=11 partial-CG LB=25882.71 (raw=24461.16, 8.8s)
+    [frac-sb] refine k=5 confirm Y(1, 2, 10)=0.5002 y_min=1294.136
+  BP [253/8000] node 241 depth=11 LB=25882.71 branch Y(1, 2, 10)=0.5002 strategy=frac_sb (8.8s)
+  BP [254/8000] node 324 kind=setup depth=12 CG failed (used=8.1s, limit=8.0); retry#1/2 next_budget=60s (remain=95s)
+    [frac-sb] refine k=5 confirm wip i=28 W=0.4966 le0 y_min=1307.656
+  BP [255/8000] node 324 depth=12 LB=26153.12 branch wip i=28 W=0.4966 le0 strategy=frac_sb (20.0s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 7)=0.4935 y_min=1297.835
+  BP [256/8000] node 242 depth=11 LB=25956.70 branch Y(3, 1, 7)=0.4935 strategy=frac_sb (20.5s)
+  BP [257/8000] node 323 depth=12 partial-CG LB=25882.71 (raw=25087.79, 8.7s)
+  BP [257/8000] node 323 depth=12 LB=25882.71 branch wip i=28 W=0.4706 le0 strategy=frac_sb (8.7s)
+  BP [258/8000] node 329 depth=13 partial-CG LB=25882.71 (raw=25647.31, 8.2s)
+  BP [258/8000] node 329 depth=13 LB=25882.71 branch scrap i=7 R=0.5474 strategy=frac_sb (8.2s)
+  BP [259/8000] node 331 depth=14 partial-CG LB=25882.71 (raw=25363.83, 8.3s)
+  BP [259/8000] node 331 depth=14 LB=25882.71 branch Y(3, 1, 7)=0.4990 strategy=frac_sb (8.3s)
+  BP [260/8000] node 334 kind=setup depth=15 CG failed (used=6.8s); abandon (no time to retry)
+  BP [261/8000] node 330 kind=wip_ge_lazy depth=13 pruned (Lagrangian LB ≥ 当前最好可行解, 13.8s)
+Freeing default Gurobi environment

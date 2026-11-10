@@ -1,0 +1,11 @@
+﻿seed,T,I,im_status,im_objective,im_lower_bound,im_gap_pct,im_runtime_sec,im_proved,bpc_status,bpc_objective,bpc_lower_bound,bpc_gap_pct,bpc_runtime_sec,bpc_nodes_explored,bpc_nodes_pruned,bpc_nodes_cg_failed,bpc_root_cg_converged,bpc_root_cg_stop,bpc_proved,same_objective,both_proved,validation_passed,error
+10101,30,40,time_limit,27298.300000000003,25703.999999999993,5.8403,902.76,False,optimal,27297.499999999996,27297.499999999996,0.0,142.9,79,40,0,True,,True,False,False,False,
+10102,30,40,optimal,27610.100000000002,27610.100000000002,0.0,521.38,True,optimal,27610.100000000002,27610.100000000002,0.0,135.41,79,40,0,True,,True,True,True,True,
+10103,30,40,time_limit,19348.2,18625.100000000002,3.7373,902.61,False,optimal,19348.2,19348.2,0.0,38.84,21,11,0,True,,True,True,False,False,
+10104,30,40,optimal,33033.600000000006,33033.600000000006,0.0,158.96,True,optimal,33033.600000000006,33033.600000000006,0.0,28.35,19,10,0,True,,True,True,True,True,
+10105,30,40,time_limit,28947.7,26218.80000000001,9.427,901.53,False,optimal,28505.3,28505.3,0.0,259.5,139,70,0,True,,True,False,False,False,
+10106,30,40,optimal,25665.6,25665.6,0.0,177.57,True,optimal,25665.6,25665.6,0.0,721.47,261,131,0,True,,True,True,True,True,
+10107,30,40,optimal,26388.5,26388.5,0.0,484.63,True,optimal,26388.5,26388.5,0.0,83.42,43,22,0,True,,True,True,True,True,
+10108,30,40,optimal,28592.800000000003,28592.800000000003,0.0,87.5,True,optimal,28592.800000000003,28592.800000000003,0.0,12.42,7,4,0,True,,True,True,True,True,
+10109,30,40,optimal,27152.2,27152.2,0.0,265.65,True,optimal,27152.2,27152.2,0.0,210.75,105,53,0,True,,True,True,True,True,
+10110,30,40,optimal,27987.8,27987.8,0.0,693.61,True,optimal,28015.6,28015.6,0.0,2.38,1,1,0,True,,True,False,True,False,

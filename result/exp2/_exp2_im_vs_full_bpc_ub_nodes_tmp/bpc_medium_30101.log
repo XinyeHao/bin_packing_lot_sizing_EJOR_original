@@ -1,0 +1,18 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=41507.10 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(4, 2, 22)=0.4286 y_min=2019.100
+  BP [1/8000] node 0 depth=0 LB=40382.00 branch Y(4, 2, 22)=0.4286 strategy=frac_sb (7.4s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 9)=0.4681 y_min=2025.051
+  BP [2/8000] node 2 depth=1 LB=40501.03 branch Y(3, 1, 9)=0.4681 strategy=frac_sb (3.9s)
+    [CGFO node] incumbent=41464.40 (depth=1, budget=20s)
+    [frac-sb] refine k=5 confirm Y(4, 1, 6)=0.5000 y_min=2050.182
+  BP [3/8000] node 1 depth=1 LB=41003.65 branch Y(4, 1, 6)=0.5000 strategy=frac_sb (3.1s)
+    [frac-sb] refine k=5 confirm Y(4, 1, 6)=0.4728 y_min=2042.869
+  BP [4/8000] node 4 depth=2 LB=40857.38 branch Y(4, 1, 6)=0.4728 strategy=frac_sb (3.6s)
+    [CGFO node] incumbent=41165.90 (depth=2, budget=20s)
+    [frac-sb] refine k=5 confirm scrap i=12 R=0.6667 y_min=2048.452
+  BP [5/8000] node 3 depth=2 LB=40969.03 branch scrap i=12 R=0.6667 strategy=frac_sb (5.2s)
+  BP stop: gap=0.749% ≤ 1.0% (UB=41165.90, tree_LB=40857.38, nodes=5)
+Freeing default Gurobi environment

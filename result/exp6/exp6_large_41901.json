@@ -1,0 +1,34 @@
+{
+  "experiment": "Exp6: practical BPC validation",
+  "experiment_version": "legacy_practical_bpc_ebrp20_v1",
+  "protocol": {
+    "pricing": "EBRP",
+    "ebrp_time_limit_sec": 20.0,
+    "strict_cg_certification": false,
+    "cuts": "standard",
+    "branch_strategy": "frac_sb"
+  },
+  "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.",
+  "model_version": "common_unload_v2_span_link_ebrp_bpc_gap1_medium_large",
+  "scales": [
+    "large"
+  ],
+  "rows": [
+    {
+      "scale": "large",
+      "seed": 41901,
+      "T": 40,
+      "I": 55,
+      "time_limit_sec": 3600.0,
+      "status": "gap_limit",
+      "ub": 37166.2,
+      "lb": 36811.08888888889,
+      "gap_pct": 0.9554679012412072,
+      "runtime_sec": 83.848,
+      "nodes": 7,
+      "nodes_cg_failed": 0,
+      "model_version": "common_unload_v2_span_link_ebrp_bpc_gap1_medium_large",
+      "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration."
+    }
+  ]
+}

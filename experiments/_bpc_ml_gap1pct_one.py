@@ -21,6 +21,11 @@ from instance_generator.generator import generate_instance
 from model_and_algo.branch_and_price import BranchAndPriceSolver
 from preprocessor.preprocess import preprocess
 
+PROCESS_ASSUMPTION = (
+    "All items in a batch leave the autoclave and enter inventory together "
+    "at the batch maximum curing duration."
+)
+
 
 def _gap(ub, lb):
     if ub is None or lb is None or ub <= 1e-9:
@@ -92,6 +97,8 @@ def main() -> None:
         elapsed = time.perf_counter() - t0
         ub, lb = res.objective, res.lower_bound
         row = {
+            "process_assumption": PROCESS_ASSUMPTION,
+            "model_version": "common_unload_v2_span_link",
             "scale": scale,
             "seed": seed,
             "T": T,

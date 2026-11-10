@@ -1,4 +1,4 @@
-"""10 new medium instances × three methods (IM, BPC-frac, BPC-ML).
+"""10 medium instances × three methods under the common-unload assumption.
 
 Seeds 31101–32001 (avoid 30101–30501). mip_gap=1%, limit=1800s.
 One subprocess per solve + disposeDefaultEnv + os._exit for memory isolation.
@@ -32,9 +32,13 @@ WORKERS = {
 }
 METHOD_ORDER = ("im", "frac", "ml")
 
-OUT_JSON = ROOT / "supplement_materials" / "three_method_10med_new.json"
-OUT_MD = ROOT / "supplement_materials" / "three_method_10med_new.md"
-TMP_DIR = ROOT / "supplement_materials" / "_three_method_10med_tmp"
+OUT_JSON = ROOT / "supplement_materials" / "three_method_10med_common_unload_v2.json"
+OUT_MD = ROOT / "supplement_materials" / "three_method_10med_common_unload_v2.md"
+TMP_DIR = ROOT / "supplement_materials" / "_three_method_10med_common_unload_v2_tmp"
+PROCESS_ASSUMPTION = (
+    "All items in a batch leave the autoclave and enter inventory together "
+    "at the batch maximum curing duration."
+)
 
 
 def _fmt(v, nd=2):
@@ -57,10 +61,11 @@ def write_outputs(meta: dict) -> None:
         by_seed.setdefault(seed, {})[method] = r
 
     lines = [
-        "# 新中规模 10 例：IM · BPC-frac · BPC-ML",
+        "# 中规模 10 例：IM · BPC-frac · BPC-ML（共同出罐）",
         "",
         f"- 种子：`{SEEDS[0]}`–`{SEEDS[-1]}`（步长 100），与旧 `30101–30501` 不重叠",
         f"- 规模：medium `{BENCH_MEDIUM}`，时限 {LIMIT:.0f}s，mip_gap={100 * MIP_GAP:.0f}%",
+        "- 工艺假设：同一批次工件按该批次最长固化时间共同出罐并进入库存。",
         "- 每例每次求解独立子进程；结束后 disposeDefaultEnv + 进程退出",
         "",
         "| seed | IM status | IM gap% | IM s | frac status | frac gap% | frac s | ML status | ML gap% | ML s |",
@@ -155,7 +160,9 @@ def main() -> None:
     TMP_DIR.mkdir(parents=True, exist_ok=True)
 
     meta = {
-        "note": "10 new medium seeds × IM / BPC-frac / BPC-ML, mip_gap=1%",
+        "note": "10 medium seeds × IM / BPC-frac / BPC-ML, mip_gap=1%, common unload",
+        "process_assumption": PROCESS_ASSUMPTION,
+        "model_version": "common_unload_v2_span_link",
         "seeds": SEEDS,
         "scale": SCALE,
         "T_I": list(BENCH_MEDIUM),

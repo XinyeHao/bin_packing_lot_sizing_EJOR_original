@@ -1,0 +1,3 @@
+﻿I,T,both_exact,both_valid_bounds,dw_minus_im_lp,dw_over_im_lp_pct,error,im_lp_exact,im_lp_lb,im_lp_status,im_lp_time_limit_sec,im_lp_time_sec,root_cg_columns,root_cg_iterations,root_cg_last_min_rc,root_cg_last_valid_lb,root_cg_rmp_value,root_cg_status,root_cg_time_sec,root_cg_valid_lb,scale,seed
+50,35,False,True,13734.635879403835,51.54219313117025,,False,26647.36412059615,status_9,1800.0,1820.299,107,24,-4.547473508864641e-13,40381.999999999985,40381.999999999985,sum_reduced_cost_threshold,6.228,40381.999999999985,medium,30101
+50,35,False,True,7821.59245509388,31.197173924370595,,False,25071.477544906113,status_9,1800.0,2806.853,142,34,-9.094947017729282e-13,32893.06999999999,32893.06999999999,sum_reduced_cost_threshold,5.188,32893.06999999999,medium,30201

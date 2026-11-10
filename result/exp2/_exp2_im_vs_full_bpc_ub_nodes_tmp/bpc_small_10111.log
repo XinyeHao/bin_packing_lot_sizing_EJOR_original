@@ -1,0 +1,12 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=29730.40 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 17)=0.5000 y_min=1483.954
+  BP [1/8000] node 0 depth=0 LB=29679.07 branch Y(2, 0, 17)=0.5000 strategy=frac_sb (1.4s)
+    [frac-sb] refine k=5 confirm Y(1, 0, 7)=0.5000 y_min=1485.457
+  BP [2/8000] node 2 depth=1 LB=29709.15 branch Y(1, 0, 7)=0.5000 strategy=frac_sb (1.6s)
+  BP [3/8000] node 1 kind=setup depth=1 pruned (Lagrangian LB ≥ 当前最好可行解, 1.1s)
+  BP [4/8000] node 4 kind=setup depth=2 pruned (Lagrangian LB ≥ 当前最好可行解, 1.5s)
+  BP [5/8000] node 3 kind=setup depth=2 pruned (Lagrangian LB ≥ 当前最好可行解, 1.2s)
+Freeing default Gurobi environment

@@ -1,0 +1,3 @@
+﻿seed,T,I,im_lp_status,im_lp_lb,im_lp_time_sec,dw_cg_status,dw_cg_converged,dw_cg_lp_lb,dw_cg_last_valid_lb,dw_cg_time_sec,dw_cg_iterations,dw_cg_columns,dw_cg_last_min_rc,dw_minus_im_lp,dw_over_im_lp_pct,error
+10111,30,40,optimal,21445.977796871673,30.192,,,,,,,,,,,RuntimeError: CG duplicate column: machine=m3 rc=-52.162500 iter=14 fingerprint already in pool (pool_size=14). Negative-RC rediscovery of an existing column is a bug.
+10112,30,40,optimal,11673.9655329602,12.157,,,,,,,,,,,RuntimeError: CG duplicate column: machine=m3 rc=-110.400000 iter=26 fingerprint already in pool (pool_size=26). Negative-RC rediscovery of an existing column is a bug.

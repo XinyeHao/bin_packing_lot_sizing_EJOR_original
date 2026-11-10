@@ -1,0 +1,28 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=33569.80 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(4, 0, 5)=0.5190 y_min=1651.987
+  BP [1/8000] node 0 depth=0 LB=33039.74 branch Y(4, 0, 5)=0.5190 strategy=frac_sb (1.3s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 6)=0.5588 y_min=1674.925
+  BP [2/8000] node 2 depth=1 LB=33498.50 branch Y(3, 1, 6)=0.5588 strategy=frac_sb (1.1s)
+    [frac-sb] refine k=5 confirm wip i=29 W=0.4286 le0 y_min=1666.261
+  BP [3/8000] node 1 depth=1 LB=33325.21 branch wip i=29 W=0.4286 le0 strategy=frac_sb (1.1s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 6)=0.5000 y_min=1673.501
+  BP [4/8000] node 5 depth=2 LB=33470.03 branch Y(3, 1, 6)=0.5000 strategy=frac_sb (1.2s)
+    [frac-sb] refine k=5 confirm scrap i=9 R=0.6667 y_min=1669.663
+  BP [5/8000] node 6 depth=2 LB=33393.27 branch scrap i=9 R=0.6667 strategy=frac_sb (1.2s)
+    [frac-sb] refine k=5 confirm Y(2, 2, 19)=0.5000 y_min=1672.820
+  BP [6/8000] node 9 depth=3 LB=33456.40 branch Y(2, 2, 19)=0.5000 strategy=frac_sb (1.2s)
+  BP [7/8000] node 10 kind=scrap_r0_lazy depth=3 pruned (Lagrangian LB ≥ 当前最好可行解, 1.4s)
+  BP [8/8000] node 12 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 1.2s)
+  BP [9/8000] node 11 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 1.2s)
+    [frac-sb] refine k=5 confirm Y(2, 1, 8)=0.5000 y_min=1677.370
+  BP [10/8000] node 8 depth=3 LB=33547.40 branch Y(2, 1, 8)=0.5000 strategy=frac_sb (1.3s)
+  BP [11/8000] node 7 kind=setup depth=3 pruned (Lagrangian LB ≥ 当前最好可行解, 1.1s)
+  BP [12/8000] node 4 kind=setup depth=2 pruned (Lagrangian LB ≥ 当前最好可行解, 1.1s)
+  BP [13/8000] node 3 kind=setup depth=2 pruned (Lagrangian LB ≥ 当前最好可行解, 1.1s)
+  BP [14/8000] node 14 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 1.1s)
+  BP [15/8000] node 13 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 1.3s)
+Freeing default Gurobi environment
+{"experiment": "exp2_new_bpc", "method": "BPC", "scale": "small", "seed": 10104, "T": 30, "I": 40, "time_limit_sec": 900.0, "model_version": "common_unload_v2_span_link_ebrp_bpc_gap1_medium_large", "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.", "pricing_mode": "ebrp", "cuts": "standard_deadline_cover", "status": "optimal", "ub": 33569.8, "lb": 33569.8, "gap_pct": 0.0, "runtime_sec": 28.262, "nodes": 15, "nodes_created": 15, "nodes_pruned": 8, "nodes_cg_failed": 0, "root_lb": 33039.74430379746, "root_cg_converged": true, "root_cg_stop": null, "lower_bound_certified": true, "termination_rule": "pending-node heap empty OR 1% gap OR time limit"}

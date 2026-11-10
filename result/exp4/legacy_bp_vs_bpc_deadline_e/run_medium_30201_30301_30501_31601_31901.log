@@ -1,0 +1,11 @@
+[1/5] medium seed=30201: BP then BPC; budget=1800s each
+  BP: UB=33677.1, gap=0.6200634151751862, nodes=13; BPC: UB=33677.1, gap=0.6200634151752077, nodes=13
+[2/5] medium seed=30301: BP then BPC; budget=1800s each
+  BP: UB=34952.299999999996, gap=0.9450692212294449, nodes=12; BPC: UB=34952.299999999996, gap=0.8105332124066102, nodes=9
+[3/5] medium seed=30501: BP then BPC; budget=1800s each
+  BP: UB=33896.4, gap=0.9933291349565606, nodes=51; BPC: UB=33670.8, gap=0.9929590473109328, nodes=111
+[4/5] medium seed=31601: BP then BPC; budget=1800s each
+  BP: UB=35021.6, gap=0.6876820777693096, nodes=12; BPC: UB=35129.6, gap=0.9973071142284528, nodes=15
+[5/5] medium seed=31901: BP then BPC; budget=1800s each
+  BP: UB=34607.2, gap=0.9734993627328584, nodes=9; BPC: UB=34657.2, gap=0.8990777134053188, nodes=13
+Finished. Summary: E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\result\exp4\legacy_bp_vs_bpc_deadline_e\summary.csv

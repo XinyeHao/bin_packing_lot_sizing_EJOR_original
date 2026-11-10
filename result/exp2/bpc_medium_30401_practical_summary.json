@@ -1,0 +1,16 @@
+{
+  "experiment": "BPC medium practical termination",
+  "scale": "medium",
+  "seed": 30401,
+  "T": 35,
+  "I": 50,
+  "time_limit_sec": 1800.0,
+  "target_gap_pct": 1.0,
+  "upper_bound": 25819.50,
+  "lower_bound": 25562.48,
+  "gap_pct": 0.995,
+  "nodes_explored": 116,
+  "termination_rule": "pending-node heap empty OR gap <= 1% OR time limit",
+  "result_status_field": null,
+  "note": "Recovered from completed solver log after the original output path could not be written."
+}

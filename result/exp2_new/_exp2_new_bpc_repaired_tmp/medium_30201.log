@@ -1,0 +1,26 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=33905.10 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(1, 3, 16)=0.5000 y_min=1644.653
+  BP [1/8000] node 0 depth=0 LB=32893.07 branch Y(1, 3, 16)=0.5000 strategy=frac_sb (4.9s)
+    [frac-sb] refine k=5 confirm Y(0, 0, 17)=0.5000 y_min=1652.481
+  BP [2/8000] node 2 depth=1 LB=33049.62 branch Y(0, 0, 17)=0.5000 strategy=frac_sb (5.0s)
+    [frac-sb] refine k=5 confirm Y(3, 3, 23)=0.4583 y_min=1676.704
+  BP [3/8000] node 1 depth=1 LB=33534.07 branch Y(3, 3, 23)=0.4583 strategy=frac_sb (3.9s)
+    [frac-sb] refine k=5 confirm Y(0, 0, 18)=0.5000 y_min=1653.831
+  BP [4/8000] node 4 depth=2 LB=33076.62 branch Y(0, 0, 18)=0.5000 strategy=frac_sb (4.2s)
+    [CGFO node] incumbent=33677.10 (depth=2, budget=20s)
+    [frac-sb] refine k=5 confirm Y(0, 0, 19)=0.4921 y_min=1655.174
+  BP [6/8000] node 8 depth=3 LB=33103.49 branch Y(0, 0, 19)=0.4921 strategy=frac_sb (4.1s)
+  BP [7/8000] node 7 kind=setup depth=3 pruned (Lagrangian LB ≥ 当前最好可行解, 4.2s)
+    [frac-sb] refine k=5 confirm Y(0, 4, 13)=0.4966 y_min=1657.303
+  BP [8/8000] node 10 depth=4 LB=33146.06 branch Y(0, 4, 13)=0.4966 strategy=frac_sb (4.1s)
+  BP [9/8000] node 9 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 4.2s)
+    [frac-sb] refine k=5 confirm scrap i=8 R=0.4615 y_min=1680.031
+  BP [10/8000] node 12 depth=5 LB=33600.62 branch scrap i=8 R=0.4615 strategy=frac_sb (5.1s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 8)=0.5214 y_min=1680.047
+  BP [11/8000] node 11 depth=5 LB=33600.94 branch Y(2, 0, 8)=0.5214 strategy=frac_sb (4.4s)
+  BP stop: gap=0.425% ≤ 1.0% (UB=33677.10, tree_LB=33534.07, nodes=11)
+Freeing default Gurobi environment
+{"experiment": "exp2_new_bpc", "method": "BPC", "scale": "medium", "seed": 30201, "T": 35, "I": 50, "time_limit_sec": 1800.0, "model_version": "common_unload_v2_span_link_ebrp_bpc_gap1_medium_large", "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.", "pricing_mode": "ebrp", "cuts": "standard_deadline_cover", "status": "gap_limit", "ub": 33677.1, "lb": 33534.070833333324, "gap_pct": 0.4247074916387528, "runtime_sec": 70.424, "nodes": 11, "nodes_created": 17, "nodes_pruned": 3, "nodes_cg_failed": 0, "root_lb": 32893.06999999999, "root_cg_converged": true, "root_cg_stop": null, "lower_bound_certified": true, "termination_rule": "pending-node heap empty OR 1% gap OR time limit"}

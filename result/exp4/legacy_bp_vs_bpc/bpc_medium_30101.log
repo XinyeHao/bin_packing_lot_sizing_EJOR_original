@@ -1,0 +1,68 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=41507.10 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(1, 2, 8)=0.5714 y_min=2019.100
+  BP [1/8000] node 0 depth=0 LB=40382.00 branch Y(1, 2, 8)=0.5714 strategy=frac_sb (6.6s)
+    [CGFO node] incumbent=41464.40 (depth=1, budget=20s)
+    [frac-sb] refine k=5 confirm wip i=20 W=0.4848 le0 y_min=2026.829
+  BP [2/8000] node 2 depth=1 LB=40536.58 branch wip i=20 W=0.4848 le0 strategy=frac_sb (4.3s)
+    [frac-sb] refine k=5 confirm Y(1, 2, 23)=0.5299 y_min=2039.542
+  BP [3/8000] node 1 depth=1 LB=40790.83 branch Y(1, 2, 23)=0.5299 strategy=frac_sb (3.8s)
+    [CGFO node] incumbent=41258.70 (depth=2, budget=20s)
+    [frac-sb] refine k=5 confirm wip i=47 W=0.4884 le0 y_min=2034.645
+  BP [4/8000] node 3 depth=2 LB=40692.90 branch wip i=47 W=0.4884 le0 strategy=frac_sb (3.3s)
+    [frac-sb] refine k=5 confirm Y(4, 1, 6)=0.5000 y_min=2028.165
+  BP [5/8000] node 4 depth=2 LB=40563.30 branch Y(4, 1, 6)=0.5000 strategy=frac_sb (2.8s)
+    [frac-sb] refine k=5 confirm scrap i=25 R=0.5000 y_min=2031.485
+  BP [6/8000] node 10 depth=3 LB=40629.69 branch scrap i=25 R=0.5000 strategy=frac_sb (4.1s)
+    [frac-sb] refine k=5 confirm wip i=3 W=0.5000 le0 y_min=2054.334
+  BP [7/8000] node 9 depth=3 LB=41086.69 branch wip i=3 W=0.5000 le0 strategy=frac_sb (3.1s)
+    [frac-sb] refine k=5 confirm wip i=47 W=0.5200 le0 y_min=2036.895
+  BP [8/8000] node 11 depth=4 LB=40737.90 branch wip i=47 W=0.5200 le0 strategy=frac_sb (4.2s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 9)=0.5000 y_min=2037.467
+  BP [9/8000] node 12 depth=4 LB=40749.33 branch Y(3, 1, 9)=0.5000 strategy=frac_sb (3.9s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 9)=0.5093 y_min=2041.289
+  BP [10/8000] node 7 depth=3 LB=40825.78 branch Y(0, 3, 9)=0.5093 strategy=frac_sb (3.8s)
+    [frac-sb] refine k=5 confirm scrap i=31 R=0.4959 y_min=2037.409
+  BP [11/8000] node 8 depth=3 LB=40748.17 branch scrap i=31 R=0.4959 strategy=frac_sb (3.7s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 9)=0.5000 y_min=2041.000
+  BP [12/8000] node 15 depth=5 LB=40820.00 branch Y(3, 1, 9)=0.5000 strategy=frac_sb (3.5s)
+    [frac-sb] refine k=5 confirm Y(1, 0, 11)=0.4235 y_min=2039.528
+  BP [13/8000] node 16 depth=5 LB=40790.55 branch Y(1, 0, 11)=0.4235 strategy=frac_sb (4.5s)
+    [frac-sb] refine k=5 confirm wip i=37 W=0.5027 le0 y_min=2042.017
+  BP [14/8000] node 21 depth=4 LB=40840.34 branch wip i=37 W=0.5027 le0 strategy=frac_sb (3.9s)
+    [frac-sb] refine k=5 confirm scrap i=34 R=0.5059 y_min=2039.746
+  BP [15/8000] node 22 depth=4 LB=40794.92 branch scrap i=34 R=0.5059 strategy=frac_sb (3.4s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 11)=0.5000 y_min=2054.100
+  BP [16/8000] node 18 depth=5 LB=41082.00 branch Y(2, 0, 11)=0.5000 strategy=frac_sb (3.4s)
+  BP [17/8000] node 17 kind=setup depth=5 pruned (Lagrangian LB ≥ 当前最好可行解, 3.6s)
+    [frac-sb] refine k=5 confirm wip i=34 W=0.5000 le0 y_min=2042.299
+  BP [18/8000] node 26 depth=6 LB=40845.99 branch wip i=34 W=0.5000 le0 strategy=frac_sb (3.9s)
+    [frac-sb] refine k=5 confirm Y(3, 2, 5)=0.5000 y_min=2054.561
+  BP [19/8000] node 25 depth=6 LB=41091.21 branch Y(3, 2, 5)=0.5000 strategy=frac_sb (5.4s)
+    [frac-sb] refine k=5 confirm Y(2, 4, 8)=0.4706 y_min=2054.224
+  BP [20/8000] node 6 depth=2 LB=41084.48 branch Y(2, 4, 8)=0.4706 strategy=frac_sb (3.4s)
+  BP [21/8000] node 5 kind=setup depth=2 pruned (Lagrangian LB ≥ 当前最好可行解, 3.0s)
+    [frac-sb] refine k=5 confirm wip i=37 W=0.5298 le0 y_min=2048.616
+  BP [22/8000] node 29 depth=5 LB=40972.33 branch wip i=37 W=0.5298 le0 strategy=frac_sb (5.1s)
+    [frac-sb] refine k=5 confirm Y(3, 2, 7)=0.5025 y_min=2043.612
+  BP [23/8000] node 30 depth=5 LB=40872.25 branch Y(3, 2, 7)=0.5025 strategy=frac_sb (3.6s)
+    [frac-sb] refine k=5 confirm Y(2, 1, 18)=0.5000 y_min=2059.487
+  BP [24/8000] node 24 depth=6 LB=41189.73 branch Y(2, 1, 18)=0.5000 strategy=frac_sb (4.2s)
+  BP [25/8000] node 23 kind=setup depth=6 pruned (Lagrangian LB ≥ 当前最好可行解, 3.8s)
+    [frac-sb] refine k=5 confirm Y(3, 3, 8)=0.5000 y_min=2045.876
+  BP [26/8000] node 20 depth=4 LB=40917.51 branch Y(3, 3, 8)=0.5000 strategy=frac_sb (3.4s)
+    [frac-sb] refine k=5 confirm Y(1, 0, 13)=0.4359 y_min=2057.579
+  BP [27/8000] node 19 depth=4 LB=41151.57 branch Y(1, 0, 13)=0.4359 strategy=frac_sb (4.5s)
+    [frac-sb] refine k=5 confirm Y(1, 3, 21)=0.5000 y_min=2044.862
+  BP [28/8000] node 27 depth=5 LB=40897.23 branch Y(1, 3, 21)=0.5000 strategy=frac_sb (3.5s)
+    [frac-sb] refine k=5 confirm Y(3, 2, 5)=0.4559 y_min=2043.360
+  BP [29/8000] node 28 depth=5 LB=40867.20 branch Y(3, 2, 5)=0.4559 strategy=frac_sb (3.1s)
+    [frac-sb] refine k=5 confirm Y(1, 0, 13)=0.5054 y_min=2047.173
+  BP [30/8000] node 33 depth=7 LB=40943.45 branch Y(1, 0, 13)=0.5054 strategy=frac_sb (5.7s)
+    [frac-sb] refine k=5 confirm wip i=31 W=0.5455 le0 y_min=2045.040
+  BP [31/8000] node 34 depth=7 LB=40900.81 branch wip i=31 W=0.5455 le0 strategy=frac_sb (3.6s)
+  BP stop: gap=0.949% ≤ 1.0% (UB=41258.70, tree_LB=40867.20, nodes=31)
+Freeing default Gurobi environment
+{"experiment": "Exp4 legacy BP versus BPC deadline-cover-cut ablation", "method": "BPC", "scale": "medium", "seed": 30101, "T": 35, "I": 50, "time_limit_sec": 1800.0, "target_mip_gap": 0.01, "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.", "model_version": "common_unload_v2_span_link_legacy_cut_ablation", "pricing_mode": "ebrp", "cuts": "standard", "strict_cg_certification": false, "controlled_difference": "lrmp_cuts only", "algorithm_parameters": {"branch_strategy": "frac_sb", "use_gurobi_init": true, "pricing_inprocess": true, "ebrp_force": true, "ebrp_time_limit": 20.0, "max_iterations": 120, "max_nodes": 8000, "use_node_im": false, "root_im": false, "final_im": false}, "termination_rule": "pending-node heap empty OR target relative gap OR time limit", "status": "gap_limit", "ub": 41258.7, "lb": 40867.20392156864, "raw_gap_pct": 0.9488812745708395, "certified_gap_pct": 0.9488812745708395, "lower_bound_certified": true, "runtime_sec": 192.683, "nodes": 31, "nodes_created": 57, "nodes_pruned": 3, "nodes_cg_failed": 0, "root_lb": 40381.999999999985, "root_converged": true, "root_stop": null}

@@ -1,0 +1,16 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=29167.20 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(0, 0, 15)=0.5000 y_min=1453.923
+  BP [1/8000] node 0 depth=0 LB=29078.46 branch Y(0, 0, 15)=0.5000 strategy=frac_sb (1.5s)
+    [frac-sb] refine k=3 confirm Y(1, 3, 8)=0.5000 y_min=1454.868
+  BP [2/8000] node 2 depth=1 LB=29097.35 branch Y(1, 3, 8)=0.5000 strategy=frac_sb (1.6s)
+  BP [3/8000] node 1 kind=setup depth=1 pruned (Lagrangian LB ≥ 当前最好可行解, 1.2s)
+    [frac-sb] refine k=5 confirm Y(1, 3, 6)=0.5000 y_min=1456.858
+  BP [4/8000] node 4 depth=2 LB=29137.15 branch Y(1, 3, 6)=0.5000 strategy=frac_sb (1.8s)
+  BP [5/8000] node 3 kind=setup depth=2 pruned (Lagrangian LB ≥ 当前最好可行解, 1.7s)
+  BP [6/8000] node 6 kind=setup depth=3 pruned (Lagrangian LB ≥ 当前最好可行解, 1.9s)
+  BP [7/8000] node 5 kind=setup depth=3 pruned (Lagrangian LB ≥ 当前最好可行解, 2.4s)
+Freeing default Gurobi environment
+{"experiment": "exp2_new_bpc", "method": "BPC", "scale": "small", "seed": 10108, "T": 30, "I": 40, "time_limit_sec": 900.0, "model_version": "common_unload_v2_span_link_ebrp_bpc_gap1_medium_large", "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.", "pricing_mode": "ebrp", "cuts": "standard_deadline_cover", "status": "optimal", "ub": 29167.2, "lb": 29167.2, "gap_pct": 0.0, "runtime_sec": 16.364, "nodes": 7, "nodes_created": 7, "nodes_pruned": 4, "nodes_cg_failed": 0, "root_lb": 29078.462500000005, "root_cg_converged": true, "root_cg_stop": null, "lower_bound_certified": true, "termination_rule": "pending-node heap empty OR 1% gap OR time limit"}

@@ -1,0 +1,2 @@
+﻿seed,T,I,im_status,im_objective,im_lower_bound,im_gap_pct,im_runtime_sec,im_proved,bpc_status,bpc_objective,bpc_lower_bound,bpc_gap_pct,bpc_runtime_sec,bpc_nodes_explored,bpc_nodes_pruned,bpc_nodes_cg_failed,bpc_root_cg_converged,bpc_root_cg_stop,bpc_proved,same_objective,both_proved,validation_passed,error
+10111,30,40,time_limit,29680.3,26652.100000000002,10.2027,901.59,False,,,,,,,,,,,,False,False,False,RuntimeError: CG duplicate column: machine=m3 rc=-25.000000 iter=13 fingerprint already in pool (pool_size=13). Negative-RC rediscovery of an existing column is a bug.

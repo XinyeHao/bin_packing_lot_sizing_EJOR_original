@@ -58,6 +58,9 @@ class BranchNode:
     fixed_scrap: dict[int, int] = field(default_factory=dict)
     fixed_wip: dict[int, WipFix] = field(default_factory=dict)
     inherited_columns: dict[str, list[ScheduleColumn]] | None = None
+    # Mathematical SRI specifications inherited from the parent.  The child
+    # creates its own Gurobi constraints from these specs.
+    inherited_sri_cuts: tuple[tuple[tuple[int, ...], int, int, str], ...] = ()
     refresh_columns: bool = False
     is_lazy: bool = False
     lower_bound: float = float("-inf")
@@ -70,6 +73,9 @@ class BranchNode:
     branch_value: int | None = None
     cg_fail_retries: int = 0
     cg_budget_override: float | None = None
+    # True only while this node has an unresolved partial-CG solve.  A later
+    # successful retry clears the mark, so it does not block a valid proof.
+    cg_incomplete: bool = False
 
 
 def _is_int(v: float, tol: float = INT_TOL) -> bool:
@@ -130,6 +136,7 @@ class BranchAndPriceResult:
     nodes_cg_failed: int
     max_depth: int
     runtime_sec: float
+    audit_runtime_sec: float
     best_fixed_y: dict[SetupFix, int]
     root_lrmp: float | None
     """根节点 RMP 目标值（在 q=ub=1 时可能偏高，不是有效下界）。"""
@@ -166,6 +173,8 @@ class BranchAndPriceSolver:
         y0_depth_budget: int = DEFAULT_BP_Y0_DEPTH_BUDGET,
         lb_stall_eps: float = DEFAULT_BP_LB_STALL_EPS,
         lazy_y1_cg_cap: float = DEFAULT_BP_LAZY_Y1_CG_CAP,
+        strict_cg_certification: bool = False,
+        strict_cg_node_time_limit: float = 120.0,
     ) -> None:
         if branch_strategy not in BP_STRATEGIES:
             raise ValueError(f"branch_strategy must be one of {BP_STRATEGIES}")
@@ -183,6 +192,14 @@ class BranchAndPriceSolver:
         self.final_im = final_im
         self.branch_strategy = branch_strategy
         self.lazy_y1_cg_cap = lazy_y1_cg_cap
+        # In the paper-aligned mode, a node may be branched/pruned only after
+        # its column-generation pricing has converged.  The default remains
+        # False for legacy practical runs; Experiment 2 enables it explicitly.
+        self.strict_cg_certification = strict_cg_certification
+        if strict_cg_node_time_limit <= 0:
+            raise ValueError("strict_cg_node_time_limit must be positive")
+        self.strict_cg_node_time_limit = float(strict_cg_node_time_limit)
+        self._strict_unresolved_cg = False
         self.ml_sb_refine_k = ML_SB_REFINE_K
         self.ml_sb_child_tlim = ML_SB_CHILD_TLIM
         self.ml_sb_min_remaining = ML_SB_MIN_REMAINING
@@ -194,6 +211,11 @@ class BranchAndPriceSolver:
             y0_depth_budget=y0_depth_budget,
             lb_stall_eps=lb_stall_eps,
         )
+
+    @staticmethod
+    def _log(message: str) -> None:
+        """Emit a diagnostic without affecting the B&P search state."""
+        print(f"    [B&P] {message}", flush=True)
 
     def _run_node_cg(
         self,
@@ -224,7 +246,11 @@ class BranchAndPriceSolver:
             "wip_ge_lazy",
         )
         # Hard sides / CG retries: do not crush EBRP; need a real dual LB.
-        if node.cg_budget_override is not None or hard_kind or node.cg_fail_retries > 0:
+        if self.strict_cg_certification:
+            # Do not silently shrink the EBRP cap with search depth.  The
+            # node budget is the paper experiment's explicit CG budget.
+            max_iters = min(max_iters, self.cg_max_iterations)
+        elif node.cg_budget_override is not None or hard_kind or node.cg_fail_retries > 0:
             max_iters = min(max_iters, self.cg_max_iterations)
             base_ebrp = float(kwargs.get("ebrp_time_limit") or 30.0)
             kwargs["ebrp_time_limit"] = min(base_ebrp, max(5.0, (time_limit or 30.0) * 0.35))
@@ -250,6 +276,7 @@ class BranchAndPriceSolver:
             fixed_scrap=node.fixed_scrap,
             fixed_wip=node.fixed_wip,
             inherited_columns=inherited,
+            inherited_sri_cuts=node.inherited_sri_cuts,
             use_gurobi_init=use_gurobi_init,
             **kwargs,
         )
@@ -557,6 +584,8 @@ class BranchAndPriceSolver:
         nodes_explored: int,
         current_lb: float | None = None,
     ) -> bool:
+        if self.strict_cg_certification and self._strict_unresolved_cg:
+            return False
         hit, rel_gap, tree_lb = self._gap_reached(
             incumbent, open_heap, lazy_heap, dfs_stack, current_lb
         )
@@ -585,6 +614,7 @@ class BranchAndPriceSolver:
         node: BranchNode,
         dec: BranchDecision,
         inherited: dict[str, list[ScheduleColumn]],
+        inherited_sri_cuts: tuple[tuple[tuple[int, ...], int, int, str], ...],
         next_id: int,
         dfs_stack: list[BranchNode],
         lazy_heap: list[tuple[float, int, BranchNode]],
@@ -599,6 +629,7 @@ class BranchAndPriceSolver:
             nonlocal n_created
             n_created += 1
             child.sibling_group_id = node.node_id
+            child.inherited_sri_cuts = inherited_sri_cuts
             return child
 
         if dec.kind in ("setup_y0", "setup"):
@@ -862,7 +893,21 @@ class BranchAndPriceSolver:
                 if remaining <= 1.0:
                     timed_out = True
                     break
-                if node.cg_budget_override is not None:
+                if self.strict_cg_certification:
+                    # Paper-aligned runs use an explicit node CG budget and
+                    # do not apply the legacy depth-based 8-second caps.
+                    # A retry may request a larger budget; honor it instead
+                    # of silently resetting the node to the base cap.
+                    requested_limit = (
+                        node.cg_budget_override
+                        if node.cg_budget_override is not None
+                        else self.strict_cg_node_time_limit
+                    )
+                    node_cg_limit = min(
+                        requested_limit,
+                        max(20.0, remaining * 0.70),
+                    )
+                elif node.cg_budget_override is not None:
                     node_cg_limit = min(float(node.cg_budget_override), remaining * 0.9)
                 elif node.depth == 0:
                     node_cg_limit = max(10.0, min(remaining * 0.75, 600.0))
@@ -883,6 +928,12 @@ class BranchAndPriceSolver:
             node_t0 = time.perf_counter()
             cg = self._run_node_cg(node, time_limit=node_cg_limit, incumbent=incumbent)
             cg_sec = time.perf_counter() - node_t0
+
+            if getattr(cg, "converged", False) and node.cg_incomplete:
+                node.cg_incomplete = False
+                nodes_cg_failed = max(0, nodes_cg_failed - 1)
+                if nodes_cg_failed == 0:
+                    self._strict_unresolved_cg = False
 
             raw_lb = getattr(cg, "last_valid_lb", None)
             if raw_lb is None and cg.lrmp_obj is not None:
@@ -910,7 +961,10 @@ class BranchAndPriceSolver:
                 continue
 
             if raw_lb is None or not math.isfinite(raw_lb):
-                nodes_cg_failed += 1
+                if not node.cg_incomplete:
+                    node.cg_incomplete = True
+                    nodes_cg_failed += 1
+                    self._strict_unresolved_cg = True
                 rem = (
                     (deadline - time.perf_counter())
                     if deadline is not None
@@ -931,7 +985,11 @@ class BranchAndPriceSolver:
                         if node.cg_budget_override is not None
                         else (node_cg_limit or used or 20.0)
                     )
-                    node.cg_budget_override = min(rem * 0.85, max(prev * 1.5, used * 1.5, 60.0))
+                    node.cg_budget_override = min(
+                        rem * 0.85,
+                        self.strict_cg_node_time_limit,
+                        max(prev * 1.5, used * 1.5, 60.0),
+                    )
                     node.refresh_columns = False
                     floor_lb = (
                         node.parent_lb
@@ -980,6 +1038,59 @@ class BranchAndPriceSolver:
                 root_cg_converged = getattr(cg, "converged", False)
                 root_cg_stop = getattr(cg, "stop_reason", None)
             if not cg.converged:
+                if self.strict_cg_certification:
+                    # Paper-aligned rule: a partial CG solve is not a node
+                    # relaxation certificate, so never branch, prune, or use
+                    # it for the global gap.  Requeue the node with a larger
+                    # budget when possible; otherwise leave it unresolved.
+                    if not node.cg_incomplete:
+                        node.cg_incomplete = True
+                        nodes_cg_failed += 1
+                        self._strict_unresolved_cg = True
+                    rem = (deadline - time.perf_counter()) if deadline is not None else 0.0
+                    max_retries = 2
+                    if (
+                        rem > 8.0
+                        and open_heap is not None
+                        and node.cg_fail_retries < max_retries
+                    ):
+                        # Resume column generation from the current RMP pool
+                        # rather than repeating the same root CG from its
+                        # initialization columns.
+                        node.inherited_columns = copy_column_pool(cg.columns)
+                        node.inherited_sri_cuts = tuple(
+                            (cut.items, cut.item_mask, cut.rhs, cut.name)
+                            for cut in cg.sri_cuts
+                        )
+                        node.refresh_columns = False
+                        node.cg_fail_retries += 1
+                        prev = float(
+                            node.cg_budget_override
+                            if node.cg_budget_override is not None
+                            else (node_cg_limit or cg_sec or 20.0)
+                        )
+                        node.cg_budget_override = min(
+                            rem * 0.85,
+                            self.strict_cg_node_time_limit,
+                            max(prev * 1.5, float(cg_sec) * 1.5, 60.0),
+                        )
+                        self._push_heap(
+                            open_heap,
+                            node,
+                            float(node.parent_lb if node.parent_lb is not None else node.lb_estimate),
+                            defer=False,
+                        )
+                    # Whether requeued or exhausted, do not continue to the
+                    # branching logic below with a partial-CG relaxation.
+                    continue
+                # A partial RMP solution may still provide a valid feasible
+                # incumbent, but it cannot certify a complete B&P tree.  It
+                # must therefore be counted even when the RMP has a primal
+                # solution; otherwise an integer restricted master can be
+                # incorrectly reported as a globally optimal solution.
+                if not node.cg_incomplete:
+                    node.cg_incomplete = True
+                    nodes_cg_failed += 1
                 print(
                     f"  BP [{nodes_explored}/{self.max_nodes}] node {node.node_id} "
                     f"depth={node.depth} partial-CG LB={node.lower_bound:.2f} "
@@ -995,7 +1106,6 @@ class BranchAndPriceSolver:
                     except Exception:
                         has_primal = False
                 if not has_primal:
-                    nodes_cg_failed += 1
                     rem = (
                         (deadline - time.perf_counter())
                         if deadline is not None
@@ -1058,7 +1168,11 @@ class BranchAndPriceSolver:
                             f"    [CGFO] incumbent={incumbent:.2f} (budget={cgfo_budget:.0f}s)",
                             flush=True,
                         )
-                if incumbent is not None and node.lower_bound >= incumbent - INT_TOL:
+                if (
+                    getattr(cg, "converged", False)
+                    and incumbent is not None
+                    and node.lower_bound >= incumbent - INT_TOL
+                ):
                     nodes_pruned += 1
                     proved_optimal = True
                     print(
@@ -1119,7 +1233,10 @@ class BranchAndPriceSolver:
                     if incumbent is None or int_cost < incumbent - INT_TOL:
                         incumbent = int_cost
                         print(f"    [integer LRMP] incumbent={incumbent:.2f}", flush=True)
-                    if abs(node.lower_bound - incumbent) <= INT_TOL:
+                    if (
+                        getattr(cg, "converged", False)
+                        and abs(node.lower_bound - incumbent) <= INT_TOL
+                    ):
                         proved_optimal = True
                     elif self._note_gap_stop(
                         incumbent, open_heap, lazy_heap, dfs_stack, nodes_explored
@@ -1139,6 +1256,10 @@ class BranchAndPriceSolver:
                 continue
 
             inherited = copy_column_pool(cg.columns)
+            inherited_sri_cuts = tuple(
+                (cut.items, cut.item_mask, cut.rhs, cut.name)
+                for cut in cg.sri_cuts
+            )
             print(
                 f"  BP [{nodes_explored}/{self.max_nodes}] node {node.node_id} "
                 f"depth={node.depth} LB={node.lower_bound:.2f} "
@@ -1150,6 +1271,7 @@ class BranchAndPriceSolver:
                 node,
                 dec,
                 inherited,
+                inherited_sri_cuts,
                 next_id,
                 dfs_stack,
                 lazy_heap,
@@ -1183,14 +1305,40 @@ class BranchAndPriceSolver:
             ):
                 gap_stopped = True
 
-        # 结束：保留搜索中得到的最好可行解上界（不再跑 final IM）
-        runtime = time.perf_counter() - start
+        # Optional independent audit of a completed B&P tree.  This is most
+        # useful while validating a newly added family of cuts: a better IM
+        # incumbent proves that the tree's apparent optimality certificate is
+        # unsound, even when no LB>UB inconsistency was exposed internally.
+        # ``runtime_sec`` is the B&P core time reported in computational
+        # experiments.  An optional compact-IM audit is a validation device,
+        # not part of the B&P algorithm, and is tracked separately.
+        core_runtime = time.perf_counter() - start
+        audit_runtime = 0.0
+        audit_found_better_ub = False
+        if self.final_im and incumbent is not None:
+            audit_start = time.perf_counter()
+            audit = solve_im(
+                self.data,
+                time_limit=self.im_time_limit,
+                mip_gap=0.0,
+                method="branch_and_price_audit",
+            )
+            audit_runtime = time.perf_counter() - audit_start
+            if audit.objective is not None and audit.objective < incumbent - INT_TOL:
+                self._log(
+                    f"B&P audit found a better IM incumbent: {audit.objective:.6f} "
+                    f"< {incumbent:.6f}; certificate is invalid"
+                )
+                incumbent = audit.objective
+                audit_found_better_ub = True
+
+        # 结束：保留搜索中得到的最好可行解上界。
         pending = self._has_pending(dfs_stack, lazy_heap, open_heap)
         tree_lb = self._tree_dual_bound(open_heap, lazy_heap, dfs_stack)
         if tree_lb is None and root_valid_lb is not None:
             tree_lb = root_valid_lb
         # 开节点队列已空 + 全程无 CG 失败 ⇒ 可证优
-        if proved_optimal or (
+        if (proved_optimal and nodes_cg_failed == 0) or (
             incumbent is not None
             and not pending
             and not timed_out
@@ -1215,6 +1363,41 @@ class BranchAndPriceSolver:
         else:
             status = "stopped_early"
 
+        if audit_found_better_ub:
+            # A compact-IM audit can improve the incumbent of a time-limited
+            # B&P run.  That improves the valid UB; it does *not* invalidate
+            # an already certified B&P tree lower bound.  Only an apparent
+            # optimality certificate is contradicted by such an improvement.
+            if status == "optimal":
+                status = "invalid_optimality_certificate"
+                tree_lb = None
+            elif status == "gap_limit":
+                # The gap-stop decision used the earlier, weaker incumbent.
+                # Recheck the claimed target against the audited UB.
+                if (
+                    tree_lb is None
+                    or incumbent is None
+                    or 100.0 * (incumbent - tree_lb) / max(abs(incumbent), 1e-9)
+                    > 100.0 * self.mip_gap + 1e-8
+                ):
+                    status = "audit_improved_ub"
+
+        # Safety guard: a valid minimization lower bound can never exceed the
+        # incumbent feasible upper bound.  If this happens, the node bound or
+        # an injected cut is inconsistent with IM.  Never report such a run as
+        # optimal and never expose a negative/meaningless gap to experiments.
+        if (
+            incumbent is not None
+            and tree_lb is not None
+            and tree_lb > incumbent + 1e-5
+        ):
+            self._log(
+                f"B&P bound inconsistency: LB={tree_lb:.6f} > UB={incumbent:.6f}; "
+                "result is marked invalid_bound"
+            )
+            status = "invalid_bound"
+            tree_lb = None
+
         return BranchAndPriceResult(
             status=status,
             objective=incumbent,
@@ -1230,7 +1413,8 @@ class BranchAndPriceSolver:
             nodes_infeasible=nodes_infeasible,
             nodes_cg_failed=nodes_cg_failed,
             max_depth=max_depth,
-            runtime_sec=runtime,
+            runtime_sec=core_runtime,
+            audit_runtime_sec=audit_runtime,
             best_fixed_y=best_fixed_y,
             cg_solver=best_cg,
             nodes_created=next_id,

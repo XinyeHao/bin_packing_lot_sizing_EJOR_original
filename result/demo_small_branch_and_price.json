@@ -1,0 +1,43 @@
+{
+  "method": "branch_and_price",
+  "instance_name": "demo_small",
+  "status": "optimal",
+  "objective": 260.0,
+  "lower_bound": 260.0,
+  "mip_gap": 0.0,
+  "runtime_sec": 0.2611662999843247,
+  "holding_cost": null,
+  "backorder_cost": null,
+  "production_cost": null,
+  "inventory": {},
+  "backorder": {},
+  "assembly": {},
+  "packing": {},
+  "setup": {},
+  "columns_selected": [],
+  "extra": {
+    "nodes_explored": 1,
+    "nodes_created": 1,
+    "nodes_pruned": 0,
+    "nodes_infeasible": 0,
+    "nodes_cg_failed": 0,
+    "max_depth": 0,
+    "root_lrmp": 260.0,
+    "root_valid_lb": 260.0,
+    "root_cg_converged": true,
+    "root_cg_stop": null,
+    "best_node_lb": 260.0,
+    "best_fixed_y_count": 0,
+    "y1_lazy_created": 0,
+    "lazy_popped": 0,
+    "dfs_popped": 0,
+    "branch_strategy": "best_bound",
+    "cost_share": {
+      "holding": 0.0,
+      "backorder": 0.0,
+      "production": 0.0,
+      "scrap": 0.0
+    },
+    "optimality_gap": 0.0
+  }
+}

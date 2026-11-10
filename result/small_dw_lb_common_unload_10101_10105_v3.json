@@ -1,0 +1,110 @@
+{
+  "experiment": "Small-scale lower-bound comparison: compact IM-LP versus pure root DW-CG",
+  "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.",
+  "model_version": "common_unload_v2_span_link",
+  "scale": {
+    "T": 30,
+    "I": 40,
+    "U": 5,
+    "M": 5
+  },
+  "seeds": [
+    10101,
+    10102,
+    10103,
+    10104,
+    10105
+  ],
+  "time_limit_sec_per_method": 900.0,
+  "im_lp_limit_interpretation": "The wall-clock cap includes generation, preprocessing, model construction, and Gurobi optimisation.",
+  "max_cg_iterations": 500,
+  "pricing_time_limit_sec": 90.0,
+  "dw_settings": {
+    "pricing": "im_gurobi (exact)",
+    "root_only": true,
+    "lrmp_cuts": "none",
+    "interpretation": "A converged DW-CG value is the pure DW LP lower bound; interrupted runs report only last_valid_lower_bound."
+  },
+  "summary": {
+    "completed": 3,
+    "dw_converged": 2,
+    "mean_dw_over_im_lp_pct": 27.688897208938503
+  },
+  "rows": [
+    {
+      "seed": 10101,
+      "T": 30,
+      "I": 40,
+      "error": null,
+      "im_lp_status": "optimal",
+      "im_lp_lb": 22276.794098708306,
+      "im_lp_time_sec": 8.771,
+      "dw_cg_status": "converged",
+      "dw_cg_converged": true,
+      "dw_cg_lp_lb": 27275.54999999999,
+      "dw_cg_last_valid_lb": 27275.54999999999,
+      "dw_cg_time_sec": 190.951,
+      "dw_cg_iterations": 25,
+      "dw_cg_columns": 116,
+      "dw_cg_last_min_rc": 0.0,
+      "dw_minus_im_lp": 4998.755901291683,
+      "dw_over_im_lp_pct": 22.439296602294895
+    },
+    {
+      "seed": 10102,
+      "T": 30,
+      "I": 40,
+      "error": null,
+      "im_lp_status": "wall_time_limit",
+      "im_lp_lb": null,
+      "im_lp_time_sec": 900.016,
+      "dw_cg_status": "converged",
+      "dw_cg_converged": true,
+      "dw_cg_lp_lb": 27667.253333333323,
+      "dw_cg_last_valid_lb": 27667.253333333323,
+      "dw_cg_time_sec": 152.424,
+      "dw_cg_iterations": 23,
+      "dw_cg_columns": 103,
+      "dw_cg_last_min_rc": 0.0,
+      "dw_minus_im_lp": null,
+      "dw_over_im_lp_pct": null
+    },
+    {
+      "seed": 10103,
+      "T": 30,
+      "I": 40,
+      "error": "RuntimeError: CG duplicate column: machine=m0 rc=-0.001402 iter=26 fingerprint already in pool (pool_size=24). Negative-RC rediscovery of an existing column is a bug.",
+      "im_lp_status": "wall_time_limit",
+      "im_lp_lb": null,
+      "im_lp_time_sec": 900.009
+    },
+    {
+      "seed": 10104,
+      "T": 30,
+      "I": 40,
+      "error": "RuntimeError: CG duplicate column: machine=m3 rc=-0.000063 iter=23 fingerprint already in pool (pool_size=16). Negative-RC rediscovery of an existing column is a bug.",
+      "im_lp_status": "wall_time_limit",
+      "im_lp_lb": null,
+      "im_lp_time_sec": 900.03
+    },
+    {
+      "seed": 10105,
+      "T": 30,
+      "I": 40,
+      "error": null,
+      "im_lp_status": "optimal",
+      "im_lp_lb": 21418.250144137397,
+      "im_lp_time_sec": 36.975,
+      "dw_cg_status": "converged",
+      "dw_cg_converged": true,
+      "dw_cg_lp_lb": 28473.100000000006,
+      "dw_cg_last_valid_lb": 28473.100000000006,
+      "dw_cg_time_sec": 211.057,
+      "dw_cg_iterations": 22,
+      "dw_cg_columns": 102,
+      "dw_cg_last_min_rc": 0.0,
+      "dw_minus_im_lp": 7054.849855862609,
+      "dw_over_im_lp_pct": 32.93849781558211
+    }
+  ]
+}

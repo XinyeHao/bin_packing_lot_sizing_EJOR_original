@@ -1,0 +1,6 @@
+scale,seed,T,I,variant,cuts,time_limit_sec,pricing_time_limit_sec,status,ub,lb,gap_pct,lower_bound_certified,runtime_sec,nodes,nodes_created,nodes_pruned,nodes_cg_failed,root_lb,root_cg_converged,root_cg_stop
+small,10101,30,40,bpc_deadline_sri,sri,900.0,,optimal,27905.000000000004,27905.000000000004,0.0,True,269.896,71,71,36,0,27275.549999999992,True,
+small,10102,30,40,bpc_deadline_sri,sri,900.0,,optimal,28227.100000000002,28227.100000000002,0.0,True,133.856,29,29,15,0,27769.899999999983,True,
+small,10103,30,40,bpc_deadline_sri,sri,900.0,,optimal,20003.6,20003.6,0.0,True,190.862,39,39,20,0,19713.500000000015,True,
+small,10104,30,40,bpc_deadline_sri,sri,900.0,,optimal,33569.8,33569.8,0.0,True,83.409,11,11,6,0,33043.33066666667,True,
+small,10105,30,40,bpc_deadline_sri,sri,900.0,,optimal,29177.3,29177.3,0.0,True,585.819,179,179,90,0,28473.100000000006,True,

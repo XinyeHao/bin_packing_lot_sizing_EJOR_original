@@ -1,0 +1,30 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=33569.80 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(4, 0, 7)=0.4810 y_min=1651.987
+  BP [1/8000] node 0 depth=0 LB=33039.74 branch Y(4, 0, 7)=0.4810 strategy=frac_sb (1.3s)
+    [frac-sb] refine k=5 confirm Y(2, 2, 14)=0.5190 y_min=1655.798
+  BP [2/8000] node 2 depth=1 LB=33115.95 branch Y(2, 2, 14)=0.5190 strategy=frac_sb (1.3s)
+  BP [3/8000] node 1 kind=setup depth=1 pruned (Lagrangian LB ≥ 当前最好可行解, 1.0s)
+    [frac-sb] refine k=5 confirm Y(4, 0, 8)=0.5000 y_min=1659.268
+  BP [4/8000] node 4 depth=2 LB=33185.35 branch Y(4, 0, 8)=0.5000 strategy=frac_sb (1.2s)
+    [frac-sb] refine k=5 confirm Y(4, 0, 5)=0.5000 y_min=1675.099
+  BP [5/8000] node 3 depth=2 LB=33501.99 branch Y(4, 0, 5)=0.5000 strategy=frac_sb (1.1s)
+    [frac-sb] refine k=5 confirm Y(3, 2, 12)=0.4615 y_min=1668.395
+  BP [6/8000] node 6 depth=3 LB=33367.91 branch Y(3, 2, 12)=0.4615 strategy=frac_sb (1.4s)
+  BP [7/8000] node 5 kind=setup depth=3 pruned (Lagrangian LB ≥ 当前最好可行解, 1.1s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 6)=0.5000 y_min=1670.766
+  BP [8/8000] node 10 depth=4 LB=33415.32 branch Y(3, 1, 6)=0.5000 strategy=frac_sb (1.4s)
+  BP [9/8000] node 9 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 1.5s)
+    [frac-sb] refine k=5 confirm Y(3, 1, 7)=0.5000 y_min=1676.209
+  BP [10/8000] node 12 depth=5 LB=33524.17 branch Y(3, 1, 7)=0.5000 strategy=frac_sb (1.3s)
+  BP [11/8000] node 11 kind=setup depth=5 pruned (Lagrangian LB ≥ 当前最好可行解, 1.2s)
+  BP [12/8000] node 8 kind=setup depth=3 pruned (Lagrangian LB ≥ 当前最好可行解, 1.0s)
+    [frac-sb] refine k=5 confirm Y(2, 1, 8)=0.5000 y_min=1678.322
+  BP [13/8000] node 7 depth=3 LB=33566.45 branch Y(2, 1, 8)=0.5000 strategy=frac_sb (1.1s)
+  BP [14/8000] node 14 kind=setup depth=6 pruned (Lagrangian LB ≥ 当前最好可行解, 1.2s)
+  BP [15/8000] node 13 kind=setup depth=6 pruned (Lagrangian LB ≥ 当前最好可行解, 1.2s)
+  BP [16/8000] node 16 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 1.0s)
+  BP [17/8000] node 15 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 1.0s)
+Freeing default Gurobi environment

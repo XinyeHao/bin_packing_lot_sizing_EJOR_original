@@ -1,0 +1,2 @@
+﻿scale,seed,T,I,time_limit_sec,status,ub,lb,gap_pct,runtime_sec,nodes,nodes_cg_failed,error
+large,41901,40,55,3600.0,gap_limit,37166.2,36811.08888888889,0.9554679012412072,83.848,7,0,

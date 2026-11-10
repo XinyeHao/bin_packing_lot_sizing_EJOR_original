@@ -1,0 +1,23 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=34952.30 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(4, 3, 12)=0.5000 y_min=1720.274
+  BP [1/8000] node 0 depth=0 LB=34405.47 branch Y(4, 3, 12)=0.5000 strategy=frac_sb (9.4s)
+    [frac-sb] refine k=5 confirm scrap i=14 R=0.5909 y_min=1722.834
+  BP [2/8000] node 2 depth=1 LB=34456.68 branch scrap i=14 R=0.5909 strategy=frac_sb (5.6s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 7)=0.5000 y_min=1733.720
+  BP [3/8000] node 1 depth=1 LB=34674.40 branch Y(2, 0, 7)=0.5000 strategy=frac_sb (4.7s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 16)=0.4211 y_min=1727.198
+  BP [4/8000] node 3 depth=2 LB=34543.95 branch Y(0, 3, 16)=0.4211 strategy=frac_sb (5.0s)
+    [frac-sb] refine k=5 confirm wip i=40 W=0.5014 le0 y_min=1729.238
+  BP [5/8000] node 4 depth=2 LB=34584.76 branch wip i=40 W=0.5014 le0 strategy=frac_sb (6.5s)
+    [frac-sb] refine k=5 confirm Y(3, 3, 16)=0.5263 y_min=1733.205
+  BP [6/8000] node 8 depth=3 LB=34664.11 branch Y(3, 3, 16)=0.5263 strategy=frac_sb (5.3s)
+  BP [7/8000] node 7 kind=setup depth=3 pruned (Lagrangian LB ≥ 当前最好可行解, 4.6s)
+    [frac-sb] refine k=5 confirm scrap i=42 R=0.4444 y_min=1734.544
+  BP [8/8000] node 9 depth=3 LB=34690.88 branch scrap i=42 R=0.4444 strategy=frac_sb (6.0s)
+    [frac-sb] refine k=5 confirm wip i=44 W=0.4800 le0 y_min=1732.280
+  BP [9/8000] node 10 depth=3 LB=34645.59 branch wip i=44 W=0.4800 le0 strategy=frac_sb (5.8s)
+  BP stop: gap=0.878% ≤ 1.0% (UB=34952.30, tree_LB=34645.59, nodes=9)
+Freeing default Gurobi environment

@@ -1,4 +1,4 @@
-"""集成模型 IM 的 Gurobi 实现（单件物料、lt_it 阶跃占罐）。"""
+"""集成模型 IM：批次按最长固化时间共同出罐、共同进入库存。"""
 
 from __future__ import annotations
 
@@ -34,6 +34,18 @@ def _item_on_machine(data: ProcessedInstance, i_idx: int, m_idx: int) -> bool:
     return data.b_im[i_idx][m_idx] == 1
 
 
+def _batch_span_values(
+    data: ProcessedInstance, u_idx: int, m_idx: int, t_idx: int, t_max: int
+) -> list[int]:
+    """给定配置、设备和开工期，可能出现的批次最大固化跨期。"""
+    return sorted({
+        data.lt_it[i_idx][t_idx]
+        for i_idx in data.items_by_config[u_idx]
+        if _item_on_machine(data, i_idx, m_idx)
+        and _item_start_feasible(data, i_idx, t_idx, t_max)
+    })
+
+
 def build_im_model(
     data: ProcessedInstance,
     time_limit: float | None = None,
@@ -67,7 +79,36 @@ def build_im_model(
     R = model.addVars(num_i, vtype=bin_type, lb=0, ub=bin_ub, name="R")
     X = model.addVars(num_i, num_m, num_t, vtype=bin_type, lb=0, ub=bin_ub, name="X")
     Y = model.addVars(num_u, num_m, num_t, vtype=bin_type, lb=0, ub=bin_ub, name="Y")
-    Lspan = model.addVars(num_u, num_m, num_t, vtype=GRB.INTEGER, lb=0, ub=num_t, name="L")
+    # L is a derived batch-span variable.  It must be relaxed together with
+    # the remaining decision variables when constructing LIM; otherwise the
+    # purported LP relaxation is still a mixed-integer program.
+    Lspan = model.addVars(num_u, num_m, num_t, vtype=int_type, lb=0, ub=num_t, name="L")
+
+    # H 选择实际批次跨度；Z 将工件开工与所选跨度线性化。
+    # 因此同一批内每件工件均在 t + L - 1 时共同进入库存。
+    span_values = {
+        (u_idx, m_idx, t_idx): _batch_span_values(data, u_idx, m_idx, t_idx, T[-1])
+        for u_idx in range(num_u)
+        for m_idx in range(num_m)
+        for t_idx in range(num_t)
+    }
+    h_keys = [
+        (u_idx, m_idx, t_idx, ell)
+        for (u_idx, m_idx, t_idx), values in span_values.items()
+        for ell in values
+    ]
+    H = model.addVars(h_keys, vtype=bin_type, lb=0, ub=bin_ub, name="H")
+    z_keys = [
+        (i_idx, m_idx, t_idx, ell)
+        for i_idx in range(num_i)
+        for m_idx in range(num_m)
+        if _item_on_machine(data, i_idx, m_idx)
+        for t_idx in range(num_t)
+        if _item_start_feasible(data, i_idx, t_idx, T[-1])
+        for ell in span_values[(data.config_of_item[i_idx], m_idx, t_idx)]
+        if ell >= data.lt_it[i_idx][t_idx]
+    ]
+    Z = model.addVars(z_keys, vtype=bin_type, lb=0, ub=bin_ub, name="Z")
 
     if fixed_y is not None:
         for (u_idx, m_idx, t_idx), val in fixed_y.items():
@@ -85,17 +126,20 @@ def build_im_model(
     scrap = gp.quicksum(data.sc_i[i] * R[i] for i in range(num_i))
     model.setObjective(holding + backorder + production + scrap, GRB.MINIMIZE)
 
-    # 成品流平衡：完工量由 X 在 t' 开工、lt_{it'} 后于 t 到达
+    # 成品流平衡：批次内所有工件在最长固化跨度结束时共同到达。
     for i_idx in range(num_i):
         for t_idx in range(num_t):
             prev_inv = 0 if t_idx == 0 else S_plus[i_idx, t_idx - 1]
             prev_bo = 0 if t_idx == 0 else S_minus[i_idx, t_idx - 1]
             prod_in = gp.quicksum(
-                X[i_idx, m_idx, prod_t_idx]
+                Z[i_idx, m_idx, prod_t_idx, ell]
                 for m_idx in range(num_m)
                 if _item_on_machine(data, i_idx, m_idx)
                 for prod_t_idx in range(num_t)
-                if T[prod_t_idx] + data.lt_it[i_idx][prod_t_idx] - 1 == T[t_idx]
+                if _item_start_feasible(data, i_idx, prod_t_idx, T[-1])
+                for ell in span_values[(data.config_of_item[i_idx], m_idx, prod_t_idx)]
+                if ell >= data.lt_it[i_idx][prod_t_idx]
+                and T[prod_t_idx] + ell - 1 == T[t_idx]
             )
             dem = data.d_it[i_idx][t_idx]
             model.addConstr(
@@ -140,24 +184,60 @@ def build_im_model(
                     name=f"x_match_y_{i_idx}_{m_idx}_{t_idx}",
                 )
 
-    # 跨期数下界与 setup 联动
+    # 实际跨度选择、锚点和 X--H 线性化。
     for u_idx in range(num_u):
-        for i_idx in data.items_by_config[u_idx]:
-            for m_idx in range(num_m):
-                if not _item_on_machine(data, i_idx, m_idx):
-                    continue
-                for t_idx in range(num_t):
-                    if not _item_start_feasible(data, i_idx, t_idx, T[-1]):
-                        continue
-                    model.addConstr(
-                        Lspan[u_idx, m_idx, t_idx] >= data.lt_it[i_idx][t_idx] * X[i_idx, m_idx, t_idx],
-                        name=f"l_ge_lt_{u_idx}_{i_idx}_{m_idx}_{t_idx}",
-                    )
         for m_idx in range(num_m):
             for t_idx in range(num_t):
+                values = span_values[(u_idx, m_idx, t_idx)]
                 model.addConstr(
-                    Lspan[u_idx, m_idx, t_idx] <= bar_m * Y[u_idx, m_idx, t_idx],
-                    name=f"l_le_my_{u_idx}_{m_idx}_{t_idx}",
+                    gp.quicksum(H[u_idx, m_idx, t_idx, ell] for ell in values) == Y[u_idx, m_idx, t_idx],
+                    name=f"choose_span_{u_idx}_{m_idx}_{t_idx}",
+                )
+                model.addConstr(
+                    Lspan[u_idx, m_idx, t_idx]
+                    == gp.quicksum(ell * H[u_idx, m_idx, t_idx, ell] for ell in values),
+                    name=f"span_value_{u_idx}_{m_idx}_{t_idx}",
+                )
+                for ell in values:
+                    anchors = [
+                        i_idx for i_idx in data.items_by_config[u_idx]
+                        if _item_on_machine(data, i_idx, m_idx)
+                        and _item_start_feasible(data, i_idx, t_idx, T[-1])
+                        and data.lt_it[i_idx][t_idx] == ell
+                    ]
+                    model.addConstr(
+                        H[u_idx, m_idx, t_idx, ell]
+                        <= gp.quicksum(X[i_idx, m_idx, t_idx] for i_idx in anchors),
+                        name=f"span_anchor_{u_idx}_{m_idx}_{t_idx}_{ell}",
+                    )
+
+    for i_idx, m_idx, t_idx, ell in z_keys:
+        u_idx = data.config_of_item[i_idx]
+        model.addConstr(Z[i_idx, m_idx, t_idx, ell] <= X[i_idx, m_idx, t_idx])
+        model.addConstr(Z[i_idx, m_idx, t_idx, ell] <= H[u_idx, m_idx, t_idx, ell])
+        model.addConstr(
+            Z[i_idx, m_idx, t_idx, ell] >= X[i_idx, m_idx, t_idx] + H[u_idx, m_idx, t_idx, ell] - 1
+        )
+
+    # 共同出罐的关键链接：已开工的工件必须随一个不短于自身固化时长的
+    # 批次跨度共同完工。没有这条等式时，X 可以取 1 而所有对应 Z 取 0，
+    # 从而错误地把长固化工件放入较短批次，并使流平衡与定价逻辑不一致。
+    for i_idx in range(num_i):
+        u_idx = data.config_of_item[i_idx]
+        for m_idx in range(num_m):
+            if not _item_on_machine(data, i_idx, m_idx):
+                continue
+            for t_idx in range(num_t):
+                if not _item_start_feasible(data, i_idx, t_idx, T[-1]):
+                    continue
+                compatible_z = [
+                    Z[i_idx, m_idx, t_idx, ell]
+                    for ell in span_values[(u_idx, m_idx, t_idx)]
+                    if (i_idx, m_idx, t_idx, ell) in Z
+                ]
+                model.addConstr(
+                    X[i_idx, m_idx, t_idx] == gp.quicksum(compatible_z),
+                    name=f"x_choose_span_{i_idx}_{m_idx}_{t_idx}",
                 )
 
     # 机台不重叠（批量添加）
@@ -222,6 +302,8 @@ def build_im_model(
         "X": X,
         "Y": Y,
         "L": Lspan,
+        "H": H,
+        "Z": Z,
     }
     return model, vars_bundle
 
@@ -263,6 +345,7 @@ def solve_im(
             lower_bound=model.ObjBound if model.Status != GRB.INFEASIBLE else None,
             mip_gap=None,
             runtime_sec=runtime,
+            extra={"mip_node_count": model.NodeCount},
         )
         model.dispose()
         return result
@@ -354,6 +437,7 @@ def solve_im(
             "scrap": scrap_qty,
             "total_scrap_qty": sum(scrap_qty.values()),
             "span": span,
+            "mip_node_count": model.NodeCount,
         },
     )
     model.dispose()
@@ -367,16 +451,29 @@ def solve_lim(
 ) -> SolutionResult:
     start = time.perf_counter()
     model, _ = build_im_model(data, time_limit=time_limit, linear_relaxation=True, verbose=verbose)
+    # A LIM must contain no integer or binary variables.  Keep this explicit
+    # check so a future formulation change cannot silently turn the reported
+    # LP relaxation into a MIP again.
+    model.update()
+    if any(var.VType != GRB.CONTINUOUS for var in model.getVars()):
+        model.dispose()
+        raise RuntimeError("solve_lim built a model containing non-continuous variables")
     model.optimize()
     runtime = time.perf_counter() - start
+    # ObjBound remains a valid minimisation lower bound when a time limit is reached.
     obj = model.ObjVal if model.Status == GRB.OPTIMAL else None
+    lower_bound = (
+        float(model.ObjBound)
+        if model.Status not in {GRB.INFEASIBLE, GRB.INF_OR_UNBD, GRB.UNBOUNDED}
+        else None
+    )
     result = SolutionResult(
         method="lim",
         instance_name=data.raw.name,
         status="optimal" if model.Status == GRB.OPTIMAL else f"status_{model.Status}",
         objective=obj,
-        lower_bound=obj,
-        mip_gap=0.0,
+        lower_bound=lower_bound,
+        mip_gap=0.0 if model.Status == GRB.OPTIMAL else None,
         runtime_sec=runtime,
     )
     model.dispose()

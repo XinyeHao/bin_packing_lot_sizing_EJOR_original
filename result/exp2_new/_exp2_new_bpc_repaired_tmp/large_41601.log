@@ -1,0 +1,5 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+Freeing default Gurobi environment
+{"experiment": "exp2_new_bpc", "method": "BPC", "scale": "large", "seed": 41601, "T": 40, "I": 55, "time_limit_sec": 3600.0, "model_version": "common_unload_v2_span_link_ebrp_bpc_gap1_medium_large", "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.", "pricing_mode": "ebrp", "cuts": "standard_deadline_cover", "status": "no_feasible", "ub": null, "lb": 26584.55511157491, "gap_pct": null, "runtime_sec": 362.462, "nodes": 3, "nodes_created": 1, "nodes_pruned": 0, "nodes_cg_failed": 1, "root_lb": 26584.55511157491, "root_cg_converged": false, "root_cg_stop": "time_limit", "lower_bound_certified": false, "termination_rule": "pending-node heap empty OR 1% gap OR time limit"}

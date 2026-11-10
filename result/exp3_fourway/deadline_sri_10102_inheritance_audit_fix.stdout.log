@@ -1,0 +1,58 @@
+[1/1] small seed=10102 bpc_deadline_sri
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=28916.40 (budget=40s)
+    [frac-sb] refine k=5 confirm wip i=1 W=0.5455 le0 y_min=1388.495
+  BP [1/8000] node 0 depth=0 LB=27769.90 branch wip i=1 W=0.5455 le0 strategy=frac_sb (1.9s)
+    [CGFO node] incumbent=28227.10 (depth=1, budget=20s)
+    [frac-sb] refine k=5 confirm Y(3, 2, 17)=0.4801 y_min=1396.200
+  BP [2/8000] node 1 depth=1 LB=27923.99 branch Y(3, 2, 17)=0.4801 strategy=frac_sb (1.5s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 17)=0.5000 y_min=1390.094
+  BP [3/8000] node 2 depth=1 LB=27801.88 branch Y(0, 3, 17)=0.5000 strategy=frac_sb (1.6s)
+    [frac-sb] refine k=5 confirm Y(4, 3, 7)=0.4500 y_min=1392.708
+  BP [4/8000] node 6 depth=2 LB=27854.16 branch Y(4, 3, 7)=0.4500 strategy=frac_sb (1.5s)
+  BP [5/8000] node 5 kind=setup depth=2 pruned (Lagrangian LB ≥ 当前最好可行解, 1.4s)
+    [frac-sb] refine k=5 confirm Y(3, 3, 2)=0.4917 y_min=1403.666
+  BP [6/8000] node 8 depth=3 LB=28073.31 branch Y(3, 3, 2)=0.4917 strategy=frac_sb (1.5s)
+    [frac-sb] refine k=5 confirm Y(0, 0, 16)=0.5000 y_min=1398.354
+  BP [7/8000] node 7 depth=3 LB=27967.08 branch Y(0, 0, 16)=0.5000 strategy=frac_sb (1.4s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 7)=0.5312 y_min=1398.960
+  BP [8/8000] node 4 depth=2 LB=27979.21 branch Y(0, 2, 7)=0.5312 strategy=frac_sb (1.4s)
+  BP [9/8000] node 3 kind=setup depth=2 pruned (Lagrangian LB ≥ 当前最好可行解, 1.5s)
+    [frac-sb] refine k=5 confirm wip i=18 W=0.5000 le0 y_min=1400.585
+  BP [10/8000] node 12 depth=4 LB=28011.71 branch wip i=18 W=0.5000 le0 strategy=frac_sb (1.6s)
+  BP [11/8000] node 11 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 1.1s)
+    [frac-sb] refine k=5 confirm Y(1, 4, 8)=0.5000 y_min=1409.993
+  BP [12/8000] node 14 depth=3 LB=28199.85 branch Y(1, 4, 8)=0.5000 strategy=frac_sb (1.6s)
+    [frac-sb] refine k=5 confirm Y(2, 3, 17)=0.5000 y_min=1405.007
+  BP [13/8000] node 13 depth=3 LB=28100.15 branch Y(2, 3, 17)=0.5000 strategy=frac_sb (1.8s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 16)=0.5000 y_min=1403.953
+  BP [14/8000] node 15 depth=5 LB=28079.07 branch Y(2, 0, 16)=0.5000 strategy=frac_sb (1.5s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 18)=0.5000 y_min=1405.461
+  BP [15/8000] node 16 depth=5 LB=28109.22 branch Y(0, 3, 18)=0.5000 strategy=frac_sb (1.6s)
+    [frac-sb] refine k=5 confirm wip i=21 W=0.5100 le0 y_min=1407.057
+  BP [16/8000] node 10 depth=4 LB=28141.14 branch wip i=21 W=0.5100 le0 strategy=frac_sb (1.8s)
+  BP [17/8000] node 9 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 1.6s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 17)=0.5000 y_min=1406.350
+  BP [18/8000] node 22 depth=6 LB=28127.00 branch Y(2, 0, 17)=0.5000 strategy=frac_sb (1.7s)
+  BP [19/8000] node 21 kind=setup depth=6 pruned (Lagrangian LB ≥ 当前最好可行解, 1.2s)
+    [frac-sb] refine k=5 confirm Y(3, 0, 2)=0.5000 y_min=1407.012
+  BP [20/8000] node 20 depth=4 LB=28140.25 branch Y(3, 0, 2)=0.5000 strategy=frac_sb (1.7s)
+  BP [21/8000] node 19 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 2.0s)
+  BP [22/8000] node 24 kind=setup depth=6 pruned (Lagrangian LB ≥ 当前最好可行解, 1.7s)
+  BP [23/8000] node 23 kind=setup depth=6 pruned (Lagrangian LB ≥ 当前最好可行解, 1.5s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 18)=0.5000 y_min=1408.529
+  BP [24/8000] node 28 depth=7 LB=28170.59 branch Y(0, 3, 18)=0.5000 strategy=frac_sb (1.7s)
+  BP [25/8000] node 27 kind=setup depth=7 pruned (Lagrangian LB ≥ 当前最好可行解, 1.1s)
+  BP [26/8000] node 30 kind=setup depth=5 pruned (Lagrangian LB ≥ 当前最好可行解, 1.9s)
+  BP [27/8000] node 29 kind=setup depth=5 pruned (Lagrangian LB ≥ 当前最好可行解, 1.7s)
+  BP [28/8000] node 25 kind=wip depth=5 pruned (Lagrangian LB ≥ 当前最好可行解, 1.7s)
+  BP [29/8000] node 26 kind=wip_ge_lazy depth=5 pruned (Lagrangian LB ≥ 当前最好可行解, 1.9s)
+  BP [30/8000] node 32 kind=setup depth=8 pruned (Lagrangian LB ≥ 当前最好可行解, 1.6s)
+  BP [31/8000] node 31 kind=setup depth=8 pruned (Lagrangian LB ≥ 当前最好可行解, 1.5s)
+  BP [32/8000] node 18 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 1.5s)
+  BP [33/8000] node 17 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 1.4s)
+  saved exp3_fourway_cut_ablation.json, exp3_fourway_cut_ablation.csv
+Completed 2 rows: E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\result\exp3_fourway\exp3_fourway_cut_ablation.json
+E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\result\exp3_fourway\exp3_fourway_cut_ablation.csv

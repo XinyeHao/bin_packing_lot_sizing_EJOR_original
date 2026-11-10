@@ -14,7 +14,10 @@ if TYPE_CHECKING:
 FRAC_TOL = 1e-4
 
 DEFAULT_LRMP_CUTS: dict[str, bool | int | float] = {
-    # 仅保留 Deadline Cover（主问题中始终建模；此处控制是否收紧 RHS）
+    "deadline_cover": True,
+    "sri": False,
+    "sri_max_cuts": 3,
+    "sri_violation_tol": 1e-6,
     "same_mt_setup": False,
     "wip_process_lb": False,
     "tight_deadline": True,
@@ -26,6 +29,10 @@ DEFAULT_LRMP_CUTS: dict[str, bool | int | float] = {
 
 # 与 DEFAULT 相同：只启用 Deadline Cover（tight RHS）
 LRMP_CUTS_STANDARD: dict[str, bool | int | float] = {
+    "deadline_cover": True,
+    "sri": False,
+    "sri_max_cuts": 3,
+    "sri_violation_tol": 1e-6,
     "same_mt_setup": False,
     "wip_process_lb": False,
     "tight_deadline": True,
@@ -36,6 +43,10 @@ LRMP_CUTS_STANDARD: dict[str, bool | int | float] = {
 }
 
 LRMP_CUTS_STRONG: dict[str, bool | int | float] = {
+    "deadline_cover": True,
+    "sri": False,
+    "sri_max_cuts": 3,
+    "sri_violation_tol": 1e-6,
     "same_mt_setup": False,
     "wip_process_lb": False,
     "tight_deadline": True,
@@ -48,16 +59,34 @@ LRMP_CUTS_STRONG: dict[str, bool | int | float] = {
 
 def merge_cut_options(opts: dict | str | None) -> dict:
     """合并切平面开关。非 deadline 类割已停用：即使外部传入 True 也强制关掉。"""
+    if opts in ("none", "off"):
+        return {
+            "deadline_cover": False,
+            "sri": False,
+            "sri_max_cuts": 0,
+            "sri_violation_tol": 1e-6,
+            "same_mt_setup": False,
+            "wip_process_lb": False,
+            "tight_deadline": False,
+            "setup_pair_static": False,
+            "setup_pair_separate": False,
+            "setup_pair_sep_max": 0,
+            "setup_pair_viol_tol": 1e-4,
+        }
     if opts is None:
         out = dict(DEFAULT_LRMP_CUTS)
     elif opts == "standard":
         out = dict(LRMP_CUTS_STANDARD)
     elif opts == "strong":
         out = dict(LRMP_CUTS_STRONG)
+    elif opts == "sri":
+        out = dict(LRMP_CUTS_STANDARD)
+        out["sri"] = True
     else:
         out = dict(DEFAULT_LRMP_CUTS)
         out.update(opts)
-    # 只保留 Deadline Cover（tight_deadline）；其余结构割一律关闭
+    # 只保留论文中的 deadline-cover；其余结构割一律关闭。
+    # 对于显式的 none/off，前面已直接返回。
     out["same_mt_setup"] = False
     out["wip_process_lb"] = False
     out["setup_pair_static"] = False
@@ -111,16 +140,43 @@ def max_process_for_item(data: ProcessedInstance, i_idx: int) -> float:
 
 
 def deadline_cover_rhs(data: ProcessedInstance, tau: int, I: list[int]) -> float:
-    """加强 deadline cover 右端：按 I 中最大托盘长度估 tray 数。"""
+    """RHS of paper (37)--(38), computed for the batch model.
+
+    ``I`` is E_tau={i: e_i <= tau}.  For each autoclave m, b_mt is the
+    maximum cardinality of one feasible batch among items in E_tau that are
+    eligible for both m and a common configuration u.  Since every item has
+    unit value in this cardinality maximisation, taking the shortest eligible
+    items first is exact.  The number of loads that can unload by tau is
+    floor(tau / lt_min), where lt_min=min_i l_ti, exactly as in (38).
+    """
     if not I:
         return 0.0
-    max_v = max(data.v_i[i] for i in I)
-    min_l = max(1, min(data.l_u) if data.l_u else 1)
-    max_setups = max(1, tau // min_l)
+    lt_vals = [float(v) for v in data.l_ti if float(v) > 0]
+    if not lt_vals:
+        return 0.0
+    min_l = max(1, int(min(lt_vals)))
+    max_setups = max(0, int(tau) // min_l)
     rhs = 0.0
-    for q in data.q_m:
-        trays = int(q / max(max_v, 1e-6))
-        rhs += max_setups * trays
+    for m_idx, q in enumerate(data.q_m):
+        best = 0
+        for u_idx, cfg_items in enumerate(data.items_by_config):
+            eligible = [
+                i for i in cfg_items
+                if i in I and bool(data.b_im[i][m_idx])
+            ]
+            if not eligible:
+                continue
+            used = 0.0
+            count = 0
+            for i in sorted(eligible, key=lambda j: float(data.v_i[j])):
+                vi = float(data.v_i[i])
+                if used + vi <= float(q) + 1e-9:
+                    used += vi
+                    count += 1
+                else:
+                    break
+            best = max(best, count)
+        rhs += max_setups * best
     return float(rhs)
 
 

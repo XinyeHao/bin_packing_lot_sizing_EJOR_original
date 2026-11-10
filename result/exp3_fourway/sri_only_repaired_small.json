@@ -1,0 +1,212 @@
+{
+  "experiment": "controlled four-way BP/BPC cut ablation",
+  "model_version": "common_unload_v2_span_link_ebrp_bpc_gap1_medium_large",
+  "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.",
+  "variants": {
+    "bp_no_cut": "none",
+    "bpc_deadline": "standard",
+    "bpc_sri_only": {
+      "deadline_cover": false,
+      "sri": true,
+      "sri_max_cuts": 3,
+      "sri_violation_tol": 1e-06
+    },
+    "bpc_deadline_sri": "sri"
+  },
+  "settings": {
+    "strict_cg_certification": true,
+    "pricing_mode": "ebrp",
+    "pricing_time_limit_sec": null,
+    "branch_strategy": "frac_sb"
+  },
+  "summary": {
+    "small": {
+      "bp_no_cut": {
+        "n": 0,
+        "n_certified": 0,
+        "n_gap_at_or_below_1pct": 0,
+        "mean_ub": null,
+        "mean_certified_lb": null,
+        "mean_certified_gap_pct": null,
+        "mean_runtime_sec": null,
+        "mean_nodes": null,
+        "mean_root_lb": null
+      },
+      "bpc_deadline": {
+        "n": 0,
+        "n_certified": 0,
+        "n_gap_at_or_below_1pct": 0,
+        "mean_ub": null,
+        "mean_certified_lb": null,
+        "mean_certified_gap_pct": null,
+        "mean_runtime_sec": null,
+        "mean_nodes": null,
+        "mean_root_lb": null
+      },
+      "bpc_sri_only": {
+        "n": 5,
+        "n_certified": 5,
+        "n_gap_at_or_below_1pct": 5,
+        "mean_ub": 27776.560000000005,
+        "mean_certified_lb": 27776.560000000005,
+        "mean_certified_gap_pct": 0.0,
+        "mean_runtime_sec": 248.2482,
+        "mean_nodes": 66.6,
+        "mean_root_lb": 27233.82952742616
+      },
+      "bpc_deadline_sri": {
+        "n": 0,
+        "n_certified": 0,
+        "n_gap_at_or_below_1pct": 0,
+        "mean_ub": null,
+        "mean_certified_lb": null,
+        "mean_certified_gap_pct": null,
+        "mean_runtime_sec": null,
+        "mean_nodes": null,
+        "mean_root_lb": null
+      }
+    }
+  },
+  "rows": [
+    {
+      "scale": "small",
+      "seed": 10101,
+      "T": 30,
+      "I": 40,
+      "variant": "bpc_sri_only",
+      "cuts": {
+        "deadline_cover": false,
+        "sri": true,
+        "sri_max_cuts": 3,
+        "sri_violation_tol": 1e-06
+      },
+      "time_limit_sec": 900.0,
+      "pricing_time_limit_sec": null,
+      "status": "optimal",
+      "ub": 27905.000000000004,
+      "lb": 27905.000000000004,
+      "gap_pct": 0.0,
+      "lower_bound_certified": true,
+      "runtime_sec": 329.816,
+      "nodes": 89,
+      "nodes_created": 89,
+      "nodes_pruned": 45,
+      "nodes_cg_failed": 0,
+      "root_lb": 27275.549999999992,
+      "root_cg_converged": true,
+      "root_cg_stop": null
+    },
+    {
+      "scale": "small",
+      "seed": 10102,
+      "T": 30,
+      "I": 40,
+      "variant": "bpc_sri_only",
+      "cuts": {
+        "deadline_cover": false,
+        "sri": true,
+        "sri_max_cuts": 3,
+        "sri_violation_tol": 1e-06
+      },
+      "time_limit_sec": 900.0,
+      "pricing_time_limit_sec": null,
+      "status": "optimal",
+      "ub": 28227.100000000002,
+      "lb": 28227.100000000002,
+      "gap_pct": 0.0,
+      "lower_bound_certified": true,
+      "runtime_sec": 162.336,
+      "nodes": 43,
+      "nodes_created": 43,
+      "nodes_pruned": 22,
+      "nodes_cg_failed": 0,
+      "root_lb": 27667.253333333323,
+      "root_cg_converged": true,
+      "root_cg_stop": null
+    },
+    {
+      "scale": "small",
+      "seed": 10103,
+      "T": 30,
+      "I": 40,
+      "variant": "bpc_sri_only",
+      "cuts": {
+        "deadline_cover": false,
+        "sri": true,
+        "sri_max_cuts": 3,
+        "sri_violation_tol": 1e-06
+      },
+      "time_limit_sec": 900.0,
+      "pricing_time_limit_sec": null,
+      "status": "optimal",
+      "ub": 20003.6,
+      "lb": 20003.6,
+      "gap_pct": 0.0,
+      "lower_bound_certified": true,
+      "runtime_sec": 153.953,
+      "nodes": 29,
+      "nodes_created": 29,
+      "nodes_pruned": 15,
+      "nodes_cg_failed": 0,
+      "root_lb": 19713.500000000022,
+      "root_cg_converged": true,
+      "root_cg_stop": null
+    },
+    {
+      "scale": "small",
+      "seed": 10104,
+      "T": 30,
+      "I": 40,
+      "variant": "bpc_sri_only",
+      "cuts": {
+        "deadline_cover": false,
+        "sri": true,
+        "sri_max_cuts": 3,
+        "sri_violation_tol": 1e-06
+      },
+      "time_limit_sec": 900.0,
+      "pricing_time_limit_sec": null,
+      "status": "optimal",
+      "ub": 33569.8,
+      "lb": 33569.8,
+      "gap_pct": 0.0,
+      "lower_bound_certified": true,
+      "runtime_sec": 94.74,
+      "nodes": 17,
+      "nodes_created": 17,
+      "nodes_pruned": 9,
+      "nodes_cg_failed": 0,
+      "root_lb": 33039.74430379746,
+      "root_cg_converged": true,
+      "root_cg_stop": null
+    },
+    {
+      "scale": "small",
+      "seed": 10105,
+      "T": 30,
+      "I": 40,
+      "variant": "bpc_sri_only",
+      "cuts": {
+        "deadline_cover": false,
+        "sri": true,
+        "sri_max_cuts": 3,
+        "sri_violation_tol": 1e-06
+      },
+      "time_limit_sec": 900.0,
+      "pricing_time_limit_sec": null,
+      "status": "optimal",
+      "ub": 29177.3,
+      "lb": 29177.3,
+      "gap_pct": 0.0,
+      "lower_bound_certified": true,
+      "runtime_sec": 500.396,
+      "nodes": 155,
+      "nodes_created": 155,
+      "nodes_pruned": 78,
+      "nodes_cg_failed": 0,
+      "root_lb": 28473.100000000006,
+      "root_cg_converged": true,
+      "root_cg_stop": null
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=40888.40 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(1, 0, 20)=0.5000 y_min=1979.478
+  BP [1/8000] node 0 depth=0 LB=39589.57 branch Y(1, 0, 20)=0.5000 strategy=frac_sb (17.1s)
+    [frac-sb] refine k=5 confirm Y(4, 0, 9)=0.5057 y_min=1983.406
+  BP [2/8000] node 2 depth=1 LB=39668.13 branch Y(4, 0, 9)=0.5057 strategy=frac_sb (6.9s)
+    [CGFO node] incumbent=40108.00 (depth=1, budget=20s)
+    [frac-sb] refine k=5 confirm Y(0, 4, 24)=0.5000 y_min=1995.950
+  BP [3/8000] node 1 depth=1 LB=39918.99 branch Y(0, 4, 24)=0.5000 strategy=frac_sb (10.2s)
+    [frac-sb] refine k=5 confirm Y(1, 1, 6)=0.5000 y_min=1985.121
+  BP [4/8000] node 4 depth=2 LB=39702.42 branch Y(1, 1, 6)=0.5000 strategy=frac_sb (7.7s)
+  BP [5/8000] node 3 kind=setup depth=2 pruned (Lagrangian LB ≥ 当前最好可行解, 6.5s)
+    [frac-sb] refine k=5 confirm Y(4, 0, 10)=0.5138 y_min=1989.969
+  BP [6/8000] node 8 depth=3 LB=39799.37 branch Y(4, 0, 10)=0.5138 strategy=frac_sb (8.3s)
+  BP [7/8000] node 7 kind=setup depth=3 pruned (Lagrangian LB ≥ 当前最好可行解, 5.4s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 5)=0.4901 y_min=2005.075
+  BP [8/8000] node 10 depth=4 LB=40101.50 branch Y(0, 2, 5)=0.4901 strategy=frac_sb (8.5s)
+  BP stop: gap=0.769% ≤ 1.0% (UB=40108.00, tree_LB=39799.37, nodes=8)
+Freeing default Gurobi environment
+{"experiment": "exp2_new_bpc", "method": "BPC", "scale": "large", "seed": 41201, "T": 40, "I": 55, "time_limit_sec": 3600.0, "model_version": "common_unload_v2_span_link_ebrp_bpc_gap1_medium_large", "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.", "pricing_mode": "ebrp", "cuts": "standard_deadline_cover", "status": "gap_limit", "ub": 40107.99999999999, "lb": 39799.374834607195, "gap_pct": 0.7694853031634525, "runtime_sec": 89.678, "nodes": 8, "nodes_created": 13, "nodes_pruned": 2, "nodes_cg_failed": 0, "root_lb": 39589.56948717952, "root_cg_converged": true, "root_cg_stop": null, "lower_bound_certified": true, "termination_rule": "pending-node heap empty OR 1% gap OR time limit"}

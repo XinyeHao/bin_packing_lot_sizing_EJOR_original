@@ -185,6 +185,7 @@ def _solve_forced_heuristic(
         x=x,
         y=y,
         production_cost=production_cost,
+        is_optimal=False,
     )
 
 
@@ -221,13 +222,14 @@ def _multi_start_greedy(
                 x=x,
                 y=y,
                 production_cost=prod,
+                is_optimal=False,
             )
         if not math.isfinite(cand.reduced_cost):
             continue
         if best is None or cand.reduced_cost < best.reduced_cost - CHECKER_TOL["pricing_dp"]:
             best = cand
 
-    return best or SubproblemResult(float("inf"), {}, {}, 0.0)
+    return best or SubproblemResult(float("inf"), {}, {}, 0.0, is_optimal=False)
 
 
 def solve_subproblem_ebrp_heuristic(

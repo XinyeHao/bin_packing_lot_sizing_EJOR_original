@@ -53,6 +53,7 @@ from model_and_algo.lrmp_cuts import (
     merge_cut_options,
     cuts_enabled,
 )
+from model_and_algo.cut_SRI import SRICut, coefficient as sri_coefficient, separate_root_triples
 
 IMPROVE_TOLERANCE = DEFAULT_CG_IMPROVE_TOLERANCE
 
@@ -96,9 +97,12 @@ def _solve_pricing_subproblem(
     ebrp_progress_sec: float = 0.0,
     skip_cross_check: bool = False,
     setup_cost_delta: list[list[float]] | None = None,
+    sri_terms: tuple[tuple[int, float], ...] = (),
 ) -> SubproblemResult:
     """统一定价入口：ebrp | ebrp_heuristic | im_gurobi（规范 §3.3）。"""
     mode = _resolve_pricing_mode(data, pricing_mode, ebrp_force=ebrp_force)
+    if sri_terms and mode != "ebrp":
+        raise RuntimeError("SRI cuts currently require exact EBRP pricing (pricing_mode='ebrp_force')")
     if mode == "im_gurobi":
         return solve_subproblem_im_gurobi(
             data,
@@ -140,6 +144,7 @@ def _solve_pricing_subproblem(
         progress_interval_sec=ebrp_progress_sec,
         skip_cross_check=skip_cross_check,
         setup_cost_delta=setup_cost_delta,
+        sri_terms=sri_terms,
     )
 
 
@@ -247,10 +252,11 @@ def _price_machine_in_worker(
         ebrp_contexts=state.get("ebrp_contexts"),
         skip_cross_check=state.get("skip_cross_check", False),
         setup_cost_delta=setup_deltas.get(m_idx),
+        sri_terms=(state.get("sri_terms_by_machine") or {}).get(m_idx, ()),
     )
     if rc_arr is not None:
         rc_arr[m_idx] = sp.reduced_cost
-    if sp.reduced_cost < -rc_tolerance:
+    if not sp.is_optimal or sp.reduced_cost < -rc_tolerance:
         return m_idx, sp
     return m_idx, None
 
@@ -299,6 +305,7 @@ def _execute_pricing_job(
         ebrp_contexts=state.get("ebrp_contexts"),
         skip_cross_check=state.get("skip_cross_check", False),
         setup_cost_delta=(state.get("setup_cost_deltas") or {}).get(m_idx),
+        sri_terms=(state.get("sri_terms_by_machine") or {}).get(m_idx, ()),
     )
     rc_arr = state.get("rc_arr")
     if rc_arr is not None:
@@ -326,15 +333,18 @@ class ColumnGenerationSolver:
         fixed_wip: dict[int, WipFix] | None = None,
         fixed_scrap: dict[int, int] | None = None,
         inherited_columns: dict[str, list[ScheduleColumn]] | None = None,
+        inherited_sri_cuts: tuple[tuple[tuple[int, ...], int, int, str], ...] = (),
         lrmp_cuts: dict | str | None = None,
         verbose: bool = False,
         pricing_mode: str = "ebrp",
+        initial_pricing_mode: str | None = None,
         ebrp_time_limit: float | None = EBRP_DEFAULT_TIME_LIMIT,
         im_pricing_time_limit: float = IM_PRICING_DEFAULT_TIME_LIMIT,
         progress_interval_sec: float | None = DEFAULT_PROGRESS_INTERVAL_SEC,
         ebrp_force: bool = False,
         max_columns_per_iter: int | None = None,
         skip_cross_check: bool = False,
+        sum_rc_stop_threshold: float | None = None,
     ) -> None:
         self.data = data
         self.max_iterations = max_iterations
@@ -343,6 +353,9 @@ class ColumnGenerationSolver:
         self.use_gurobi_init = use_gurobi_init
         self.max_columns_per_iter = max_columns_per_iter
         self.pricing_mode = pricing_mode.lower()
+        self.initial_pricing_mode = (
+            initial_pricing_mode.lower() if initial_pricing_mode else None
+        )
         self.ebrp_time_limit = ebrp_time_limit
         self.im_pricing_time_limit = im_pricing_time_limit
         self.ebrp_force = ebrp_force or pricing_mode.lower() == "ebrp_force"
@@ -356,6 +369,10 @@ class ColumnGenerationSolver:
         self.fixed_wip: dict[int, WipFix] = dict(fixed_wip or {})
         self.fixed_scrap: dict[int, int] = dict(fixed_scrap or {})
         self.inherited_columns = inherited_columns
+        # A Gurobi constraint belongs to one master model only.  Branch nodes
+        # therefore pass the mathematical SRI specification, which is rebuilt
+        # against every child's fresh master below.
+        self._inherited_sri_specs = tuple(inherited_sri_cuts)
         self.lrmp_cut_opts = merge_cut_options(lrmp_cuts)
         self.verbose = verbose
         self._progress = ProgressMonitor(
@@ -375,6 +392,10 @@ class ColumnGenerationSolver:
             else 0.0
         )
         self.skip_cross_check = skip_cross_check
+        # Optional paper-style approximate stop: terminate when the sum of
+        # pricing reduced costs exceeds a threshold (e.g. -0.1).  This is not
+        # a proof that every reduced cost is non-negative.
+        self.sum_rc_stop_threshold = sum_rc_stop_threshold
         self._flow_pi_slots: list[tuple[int, gp.Constr]] = []
         self._item_leads = [int(v) for v in data.l_ti]
         self._alpha_flat: mp.Array | None = None
@@ -387,6 +408,9 @@ class ColumnGenerationSolver:
         self._model: gp.Model | None = None
         self._artifacts: dict | None = None
         self.deadline_cuts: dict[int, dict] = {}
+        # Root-only subset-row cuts.  They are optional and disabled in the
+        # default experiment configuration.
+        self.sri_cuts: list[SRICut] = self._clone_inherited_sri_cuts()
         self.same_mt_cuts: list[dict] = []
         self.wip_proc_lb_rows: list[dict] = []
         self.setup_pair_cuts: list[dict] = []
@@ -447,7 +471,82 @@ class ColumnGenerationSolver:
             ebrp_progress_sec=self._ebrp_progress_sec,
             skip_cross_check=self.skip_cross_check,
             setup_cost_delta=self._setup_cost_deltas.get(m_idx),
+            sri_terms=self._sri_pricing_terms(m_idx),
         )
+
+    def _sri_pricing_terms(self, m_idx: int) -> tuple[tuple[int, float], ...]:
+        """Return machine-local ``(item_mask, master_dual)`` SRI pairs.
+
+        ``SRICut.item_mask`` is expressed in the global ``cured_items``
+        index.  EBRP's routing state, however, uses the local index of the
+        items feasible on the current machine.  Passing a global mask into
+        EBRP silently applies an SRI dual to unrelated local items (or drops
+        it altogether), so translate every mask before pricing.
+        """
+        terms: list[tuple[int, float]] = []
+        if self._ebrp_contexts is not None:
+            local_items = self._ebrp_contexts[m_idx].local_items
+        else:
+            local_items = self.data.items_by_machine[m_idx]
+        for cut in self.sri_cuts:
+            if cut.constr is None:
+                continue
+            try:
+                pi = float(cut.constr.Pi)
+            except (AttributeError, gp.GurobiError):
+                continue
+            if abs(pi) <= 1e-12:
+                continue
+            local_mask = 0
+            for local_idx, global_idx in enumerate(local_items):
+                if cut.item_mask & (1 << global_idx):
+                    local_mask |= 1 << local_idx
+            if local_mask:
+                terms.append((local_mask, pi))
+        return tuple(terms)
+
+    def _separate_sri_cuts(self) -> int:
+        """Add violated triple SRIs at the root master only.
+
+        Child-node CG solvers do not inherit dynamically separated master rows,
+        so this conservative first implementation confines separation to the
+        root.  New root columns still receive every stored SRI coefficient.
+        """
+        if not self.lrmp_cut_opts.get("sri", False):
+            return 0
+        if self.fixed_y or self.fixed_wip or self.fixed_scrap:
+            return 0
+        if self._model is None or self._artifacts is None:
+            return 0
+        remaining = int(self.lrmp_cut_opts.get("sri_max_cuts", 3)) - len(self.sri_cuts)
+        if remaining <= 0:
+            return 0
+        q_vars = self._artifacts["Q"]
+        q_values = {
+            machine: [float(qv.X) for qv in q_vars[machine]]
+            for machine in self.data.machines
+        }
+        candidates = separate_root_triples(
+            self.data,
+            self.columns,
+            q_values,
+            existing_masks={cut.item_mask for cut in self.sri_cuts},
+            max_cuts=remaining,
+            violation_tol=float(self.lrmp_cut_opts.get("sri_violation_tol", 1e-6)),
+        )
+        for cut in candidates:
+            expr = gp.LinExpr()
+            for machine in self.data.machines:
+                for idx, col in enumerate(self.columns[machine]):
+                    coeff = sri_coefficient(self.data, col, cut)
+                    if coeff:
+                        expr += coeff * q_vars[machine][idx]
+            cut.constr = self._model.addConstr(expr <= cut.rhs, name=cut.name)
+            self.sri_cuts.append(cut)
+        if candidates:
+            self._artifacts["sri_cuts"] = self.sri_cuts
+            self._log(f"[SRI] added {len(candidates)} violated root triple cut(s)")
+        return len(candidates)
 
     def _fold_deadline_duals_into_alpha(self, alpha: list[list[float]]) -> list[list[float]]:
         """把 deadline cover 割对偶 π_τ 折入 α：RC -= π·A  ⟺  α'[i][t] = α[i][t] + π_τ（arrival≤τ）。"""
@@ -551,6 +650,14 @@ class ColumnGenerationSolver:
         self.wip_proc_lb_rows = []
         self.setup_pair_cuts = []
         self.deadline_cuts = {}
+        self.sri_cuts = self._clone_inherited_sri_cuts()
+
+    def _clone_inherited_sri_cuts(self) -> list[SRICut]:
+        """Instantiate node-local SRI rows from inherited math-only specs."""
+        return [
+            SRICut(items=items, item_mask=item_mask, rhs=rhs, name=name)
+            for items, item_mask, rhs, name in self._inherited_sri_specs
+        ]
 
     def _rebuild_column_sigs(self) -> None:
         self._column_sigs = {m: set() for m in self.data.machines}
@@ -590,10 +697,9 @@ class ColumnGenerationSolver:
         return span
 
     def _column_arrival_t_idx(self, col: ScheduleColumn, item_name: str, start_period: int) -> int | None:
-        """单件完工时刻 t_idx：与 IM / 定价子问题一致，用该件自身 lt_it，非批次 max span。"""
+        """批次共同出罐的完工时刻：使用该批次的最大固化跨期。"""
         t_idx = start_period - 1
-        i_idx = self.data.cured_index[item_name]
-        span = self.data.lt_it[i_idx][t_idx]
+        span = self._batch_span_at_start(col, start_period)
         arr = t_idx + span - 1
         if 0 <= arr < len(self.data.periods):
             return arr
@@ -761,6 +867,13 @@ class ColumnGenerationSolver:
             "num_t": len(self.data.periods),
             "skip_cross_check": self.skip_cross_check,
             "setup_cost_deltas": self._setup_cost_deltas,
+            # Shared-memory pricing bypasses ``_dispatch_pricing``.  Carry
+            # the machine-local SRI dual terms explicitly so that this path
+            # uses the same reduced-cost expression as direct pricing.
+            "sri_terms_by_machine": {
+                m_idx: self._sri_pricing_terms(m_idx)
+                for m_idx in range(len(self.data.machines))
+            },
         }
 
     def _price_machines_inprocess(
@@ -822,7 +935,9 @@ class ColumnGenerationSolver:
         use_shared_duals: bool = False,
         duals_preloaded: bool = False,
     ) -> list[tuple[int, SubproblemResult]]:
-        if self.pricing_inprocess or executor is None:
+        # SRI duals are path-dependent.  Keep this first implementation
+        # in-process so worker pricing can never omit the SRI contribution.
+        if self.sri_cuts or self.pricing_inprocess or executor is None:
             return self._price_machines_inprocess(
                 alpha,
                 rho,
@@ -1006,15 +1121,24 @@ class ColumnGenerationSolver:
             f"(|M|={len(data.machines)}, |I|={len(data.cured_items)}, |T|={len(data.periods)})"
         )
         if use_gurobi_init:
-            priced = self._price_machines(
-                alpha,
-                rho,
-                betas,
-                use_gurobi_when_no_fixes=True,
-                executor=executor,
-                use_shared_duals=self._alpha_flat is not None,
-            )
-            for m_idx, sp in priced:
+            original_mode = self.pricing_mode
+            original_force = self.ebrp_force
+            if self.initial_pricing_mode is not None:
+                self.pricing_mode = self.initial_pricing_mode
+                self.ebrp_force = False
+            try:
+                priced = self._price_machines(
+                    alpha,
+                    rho,
+                    betas,
+                    use_gurobi_when_no_fixes=True,
+                    executor=executor,
+                    use_shared_duals=self._alpha_flat is not None,
+                )
+            finally:
+                self.pricing_mode = original_mode
+                self.ebrp_force = original_force
+            for priced_idx, (m_idx, sp) in enumerate(priced):
                 if sp is None:
                     continue
                 machine = data.machines[m_idx]
@@ -1103,7 +1227,7 @@ class ColumnGenerationSolver:
                 executor=executor,
                 use_shared_duals=False,
             )
-            for m_idx, sp in priced:
+            for priced_idx, (m_idx, sp) in enumerate(priced):
                 if self._try_add_priced_column(m_idx, sp):
                     added += 1
         if added:
@@ -1217,22 +1341,39 @@ class ColumnGenerationSolver:
                         wip_expr += coeff * q_vars[machine][col_idx]
             wip_balance[i_idx] = model.addConstr(wip_expr == data.w_i[i_idx], name=f"wip_balance_{i_idx}")
 
-        distinct_taus = sorted(set(data.deadlines)) if hasattr(data, "deadlines") and data.deadlines else []
-        for tau in distinct_taus:
-            I = [ii for ii in range(num_i) if data.deadlines[ii] <= tau]
-            if not I:
-                continue
-            if self.lrmp_cut_opts.get("tight_deadline", False):
-                rhs = deadline_cover_rhs(data, tau, I)
-            else:
-                rhs = 0.0
-                min_l = min(data.l_u) if data.l_u else 1
-                for m_idx in range(len(data.machines)):
-                    max_trays_per_setup = int(data.q_m[m_idx] / max(min(data.v_i), 0.1)) if data.v_i else 5
-                    num_possible_setups = max(1, int(tau / max(min_l, 1)))
-                    rhs += num_possible_setups * max_trays_per_setup
-            cut = model.addConstr(gp.LinExpr() <= rhs, name=f"deadline_cover_tau{tau}")
-            self.deadline_cuts[tau] = {"constr": cut, "rhs": rhs, "I": I}
+        if self.lrmp_cut_opts.get("deadline_cover", True):
+            distinct_taus = sorted(set(data.deadlines)) if hasattr(data, "deadlines") and data.deadlines else []
+            for tau in distinct_taus:
+                # Paper (37)--(38): E_tau contains precisely the items whose
+                # latest feasible start e_i is no later than tau.  The same
+                # set is stored in ``deadline_cuts`` and is subsequently used
+                # for column coefficients and the pricing-dual fold.
+                I = [ii for ii in range(num_i) if data.deadlines[ii] <= tau]
+                if not I:
+                    continue
+                if self.lrmp_cut_opts.get("tight_deadline", False):
+                    rhs = deadline_cover_rhs(data, tau, I)
+                else:
+                    rhs = 0.0
+                    min_l = min(data.l_u) if data.l_u else 1
+                    for m_idx in range(len(data.machines)):
+                        max_trays_per_setup = int(data.q_m[m_idx] / max(min(data.v_i), 0.1)) if data.v_i else 5
+                        num_possible_setups = max(1, int(tau / max(min_l, 1)))
+                        rhs += num_possible_setups * max_trays_per_setup
+                cut = model.addConstr(gp.LinExpr() <= rhs, name=f"deadline_cover_tau{tau}")
+                self.deadline_cuts[tau] = {"constr": cut, "rhs": rhs, "I": I}
+
+        # Root-separated SRIs are inherited by branch nodes as mathematical
+        # specifications.  Rebuild their node-local Gurobi rows before any
+        # newly priced column is appended to this master.
+        for sri_cut in self.sri_cuts:
+            expr = gp.LinExpr()
+            for machine in data.machines:
+                for col_idx, col in enumerate(self.columns[machine]):
+                    coeff = sri_coefficient(data, col, sri_cut)
+                    if coeff:
+                        expr += coeff * q_vars[machine][col_idx]
+            sri_cut.constr = model.addConstr(expr <= sri_cut.rhs, name=sri_cut.name)
 
         self._add_lrmp_cuts(model, q_vars, r_vars)
 
@@ -1260,6 +1401,7 @@ class ColumnGenerationSolver:
             "choose_one": choose_one,
             "wip_balance": wip_balance,
             "deadline_cuts": self.deadline_cuts,
+            "sri_cuts": self.sri_cuts,
             "same_mt_cuts": self.same_mt_cuts,
             "wip_proc_lb_rows": self.wip_proc_lb_rows,
             "setup_pair_cuts": self.setup_pair_cuts,
@@ -1411,6 +1553,13 @@ class ColumnGenerationSolver:
             contrib = self._get_column_contrib_to_tau(col, tau, cut_info.get("I", []))
             if contrib > 0:
                 col_expr.addTerms(float(contrib), cut_info["constr"])
+
+        for cut in self.sri_cuts:
+            if cut.constr is None:
+                continue
+            coeff = sri_coefficient(data, col, cut)
+            if coeff:
+                col_expr.addTerms(float(coeff), cut.constr)
 
         m_idx = data.machines.index(machine)
         num_u = len(data.configs)
@@ -1799,6 +1948,12 @@ class ColumnGenerationSolver:
                 break
 
             lrmp_obj = model.ObjVal
+            if self._separate_sri_cuts() > 0:
+                model.optimize()
+                if model.Status not in (GRB.OPTIMAL, GRB.SUBOPTIMAL):
+                    self.stop_reason = "infeasible_master"
+                    break
+                lrmp_obj = model.ObjVal
             if self._separate_setup_pair_cuts() > 0:
                 model.optimize()
                 if model.Status not in (GRB.OPTIMAL, GRB.SUBOPTIMAL):
@@ -1848,18 +2003,58 @@ class ColumnGenerationSolver:
             min_rc = float("inf")
             new_columns: list[tuple[str, ScheduleColumn]] = []
             t_pricing = time.perf_counter()
-            priced = self._price_machines(
-                alpha,
-                rhos,
-                betas,
-                use_gurobi_when_no_fixes=False,
-                executor=pricing_pool,
-                use_shared_duals=use_shared_duals,
-                duals_preloaded=duals_ready,
-            )
-            for m_idx, sp in priced:
+            # A CG time limit is global.  Divide the remaining budget among
+            # machines for this pricing round so one MIP cannot overrun the
+            # whole experiment by several multiples of its stated limit.
+            saved_im_pricing_limit = self.im_pricing_time_limit
+            if self.pricing_mode.lower() == "im_gurobi" and self.time_limit is not None:
+                remaining = max(0.0, self.time_limit - (time.perf_counter() - run_start))
+                per_machine = max(1.0, 0.9 * remaining / max(1, len(self.data.machines)))
+                self.im_pricing_time_limit = min(saved_im_pricing_limit, per_machine)
+            try:
+                priced = self._price_machines(
+                    alpha,
+                    rhos,
+                    betas,
+                    use_gurobi_when_no_fixes=False,
+                    executor=pricing_pool,
+                    use_shared_duals=use_shared_duals,
+                    duals_preloaded=duals_ready,
+                )
+            finally:
+                self.im_pricing_time_limit = saved_im_pricing_limit
+
+            # An interrupted pricing MIP cannot prove that no negative column
+            # exists.  Stop safely; do not report the RMP value as a converged
+            # DW bound.
+            incomplete = [m_idx for m_idx, sp in priced if sp is not None and not sp.is_optimal]
+            if incomplete:
+                self.stop_reason = "pricing_time_limit"
+                self._log(
+                    f"CG stops without certification: incomplete pricing on machines {incomplete}"
+                )
+                return iteration_rcs, last_valid_lb
+
+            for priced_idx, (m_idx, sp) in enumerate(priced):
                 machine = self.data.machines[m_idx]
                 rc = sp.reduced_cost if sp is not None else self._rc_arr[m_idx]
+                # A column already selected at q=1 cannot be increased because
+                # of Σq≤1.  Its raw negative RC is a bound effect, not a new
+                # improving direction; do not mistake it for a pricing error.
+                if rc < -self.rc_tolerance and sp is not None:
+                    candidate = subproblem_to_column(self.data, m_idx, -1, sp)
+                    if self._column_seen(machine, candidate):
+                        qv = self._q_for_column(machine, candidate)
+                        try:
+                            saturated = qv is not None and float(qv.X) >= 1.0 - self.rc_tolerance
+                        except (AttributeError, gp.GurobiError):
+                            saturated = False
+                        if saturated:
+                            rc = 0.0
+                            # Keep downstream convergence tests consistent
+                            # with the effective (non-improvable) direction.
+                            sp = SubproblemResult(0.0, sp.x, sp.y, sp.production_cost)
+                            priced[priced_idx] = (m_idx, sp)
                 sum_rc += rc
                 min_rc = min(min_rc, rc)
                 lb_correction += min(rc, 0.0)
@@ -1869,12 +2064,43 @@ class ColumnGenerationSolver:
                     col = subproblem_to_column(self.data, m_idx, self._next_col_id, sp)
                     if column_compatible(col, m_idx, self.data, self.fixed_y):
                         if self._column_seen(machine, col):
-                            raise RuntimeError(
-                                f"CG duplicate column: machine={machine} rc={rc:.6f} "
-                                f"iter={len(iteration_rcs) + 1} fingerprint already in pool "
-                                f"(pool_size={len(self.columns.get(machine, []))}). "
-                                f"Negative-RC rediscovery of an existing column is a bug."
-                            )
+                            # The pricing oracle has returned a structural
+                            # duplicate.  Do not blindly ignore it: a truly
+                            # negative duplicate would mean that the oracle
+                            # and the master use inconsistent coefficients.
+                            # Instead, ask the existing master variable for
+                            # its reduced cost.  This distinguishes harmless
+                            # numerical rediscovery from a modelling defect.
+                            qv = self._q_for_column(machine, col)
+                            try:
+                                master_rc = float(qv.RC) if qv is not None else float("-inf")
+                            except (AttributeError, gp.GurobiError):
+                                master_rc = float("-inf")
+                            if (
+                                master_rc >= -self.rc_tolerance
+                                and abs(master_rc - rc) <= 10.0 * self.rc_tolerance
+                            ):
+                                # Same column is non-improving in the actual
+                                # RMP and differs only at numerical tolerance.
+                                sp = SubproblemResult(
+                                    0.0, sp.x, sp.y, sp.production_cost,
+                                    is_optimal=sp.is_optimal,
+                                )
+                                priced[priced_idx] = (m_idx, sp)
+                            else:
+                                # Never claim convergence when master and
+                                # pricing disagree materially.  In particular,
+                                # this catches a missing cut-dual term.
+                                self.converged = False
+                                self.stop_reason = "duplicate_column_inconsistency"
+                                self._log(
+                                    f"CG停止：重复列与主问题约简成本不一致 "
+                                    f"machine={machine} pricing_rc={rc:.6f} "
+                                    f"master_rc={master_rc:.6f} "
+                                    f"iter={len(iteration_rcs) + 1}"
+                                )
+                                return iteration_rcs, last_valid_lb
+                            continue
                         self._next_col_id += 1
                         new_columns.append((machine, col))
             pricing_sec = time.perf_counter() - t_pricing
@@ -1915,8 +2141,31 @@ class ColumnGenerationSolver:
             last_valid_lb = max(last_valid_lb, lrmp_obj + lb_correction)
             self.lrmp_obj = lrmp_obj
 
+            if (
+                self.sum_rc_stop_threshold is not None
+                and sum_rc > self.sum_rc_stop_threshold
+            ):
+                self.converged = False
+                self.stop_reason = "sum_reduced_cost_threshold"
+                self._log(
+                    f"CG近似停止：sum_RC={sum_rc:.4f} > "
+                    f"{self.sum_rc_stop_threshold:.4f}; iter={iter_no}"
+                )
+                return iteration_rcs, last_valid_lb
+
             # Lagrangian lower bound pruning: lrmp_obj + Σ min(RC_i, 0) ≤ MP_obj ≤ IP_obj
-            if self.incumbent is not None and last_valid_lb >= self.incumbent - 1e-5:
+            # The per-machine Lagrangian correction is safe for the base
+            # master, but the first SRI implementation changes reduced costs
+            # through a path-dependent rank-1 term.  Do not use this partial
+            # correction to prune an SRI node before full CG convergence.
+            # A diagnostic on seed 10102 found a reference-compatible node
+            # incorrectly eliminated by this shortcut.  Once CG converges,
+            # the full master objective remains the bound used by B&P.
+            if (
+                not self.sri_cuts
+                and self.incumbent is not None
+                and last_valid_lb >= self.incumbent - 1e-5
+            ):
                 self.stop_reason = "pruned_by_incumbent"
                 self.converged = True
                 self._log(
@@ -1935,6 +2184,13 @@ class ColumnGenerationSolver:
                 pricing_ok = effective_pricing_rc >= -self.rc_tolerance
                 pool_ok = improvable_pool_rc >= -self.rc_tolerance
                 if pricing_ok and pool_ok:
+                    # After a fully priced master has converged, its current
+                    # objective is itself an exact DW lower bound.  This is
+                    # especially important after root SRI separation: the
+                    # Lagrangian correction computed earlier in the iteration
+                    # can still refer to pre-cut reduced costs and is then
+                    # unnecessarily weaker than ``lrmp_obj``.
+                    last_valid_lb = max(last_valid_lb, lrmp_obj)
                     self.converged = True
                     self.last_min_rc = effective_pricing_rc
                     self._log(

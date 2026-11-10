@@ -14,6 +14,10 @@ class SubproblemResult:
     x: dict[tuple[int, int], int]
     y: dict[tuple[int, int], int]
     production_cost: float
+    # False means the pricing oracle stopped before proving its optimum.  Such
+    # a result may provide a feasible improving column, but it must never be
+    # used to certify CG convergence or a DW lower bound.
+    is_optimal: bool = True
 
 
 def scale_lengths(values: list[float], q: float) -> tuple[int, list[int]]:

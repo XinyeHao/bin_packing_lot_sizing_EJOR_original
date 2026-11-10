@@ -1,0 +1,4 @@
+﻿seed,T,I,im_lp_status,im_lp_lb,im_lp_time_sec,dw_cg_status,dw_cg_converged,dw_cg_lp_lb,dw_cg_last_valid_lb,dw_cg_time_sec,dw_cg_iterations,dw_cg_columns,dw_cg_last_min_rc,dw_minus_im_lp,dw_over_im_lp_pct,error
+20001,35,50,wall_time_limit,,1800.022,converged,True,32627.129032258075,32627.129032256405,1513.762,33,143,0.0,,,
+20002,35,50,optimal,23254.633001644157,270.857,pricing_time_limit,False,,28864.217625899215,1777.84,37,185,-93.81941747572864,,,
+20003,35,50,optimal,14837.149348370926,55.141,pricing_time_limit,False,,-6949.000000000007,29272.389,1,10,-11862.099999999999,,,

@@ -1,0 +1,26 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=35012.70 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(0, 0, 8)=0.5185 y_min=1707.518
+  BP [1/8000] node 0 depth=0 LB=34150.37 branch Y(0, 0, 8)=0.5185 strategy=frac_sb (14.8s)
+    [frac-sb] refine k=5 confirm Y(4, 1, 13)=0.4888 y_min=1710.793
+  BP [2/8000] node 2 depth=1 LB=34215.87 branch Y(4, 1, 13)=0.4888 strategy=frac_sb (5.8s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 23)=0.5065 y_min=1709.959
+  BP [3/8000] node 1 depth=1 LB=34199.19 branch Y(0, 3, 23)=0.5065 strategy=frac_sb (5.2s)
+    [frac-sb] refine k=5 confirm scrap i=16 R=0.5076 y_min=1713.515
+  BP [4/8000] node 6 depth=2 LB=34270.30 branch scrap i=16 R=0.5076 strategy=frac_sb (6.0s)
+    [CGFO node] incumbent=34607.20 (depth=2, budget=20s)
+    [frac-sb] refine k=5 confirm scrap i=48 R=0.5556 y_min=1726.865
+  BP [5/8000] node 5 depth=2 LB=34537.30 branch scrap i=48 R=0.5556 strategy=frac_sb (7.3s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 23)=0.4662 y_min=1712.773
+  BP [6/8000] node 4 depth=2 LB=34255.47 branch Y(0, 3, 23)=0.4662 strategy=frac_sb (6.6s)
+    [frac-sb] refine k=5 confirm Y(3, 0, 8)=0.5000 y_min=1724.351
+  BP [7/8000] node 3 depth=2 LB=34487.01 branch Y(3, 0, 8)=0.5000 strategy=frac_sb (6.9s)
+    [frac-sb] refine k=5 confirm Y(3, 0, 8)=0.5360 y_min=1714.108
+  BP [8/8000] node 12 depth=3 LB=34282.16 branch Y(3, 0, 8)=0.5360 strategy=frac_sb (5.0s)
+    [frac-sb] refine k=5 confirm Y(2, 1, 13)=0.6000 y_min=1721.491
+  BP [9/8000] node 11 depth=3 LB=34429.82 branch Y(2, 1, 13)=0.6000 strategy=frac_sb (11.1s)
+  BP stop: gap=0.973% ¡Ü 1.0% (UB=34607.20, tree_LB=34270.30, nodes=9)
+Freeing default Gurobi environment
+{"experiment": "Exp4 legacy BP versus BPC deadline-cover-cut ablation", "method": "BP", "scale": "medium", "seed": 31901, "T": 35, "I": 50, "time_limit_sec": 1800.0, "target_mip_gap": 0.01, "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.", "model_version": "common_unload_v2_span_link_legacy_cut_ablation_deadline_e", "pricing_mode": "ebrp", "cuts": "none", "strict_cg_certification": false, "controlled_difference": "lrmp_cuts only", "algorithm_parameters": {"branch_strategy": "frac_sb", "use_gurobi_init": true, "pricing_inprocess": true, "ebrp_force": true, "ebrp_time_limit": 20.0, "max_iterations": 120, "max_nodes": 8000, "use_node_im": false, "root_im": false, "final_im": false}, "termination_rule": "pending-node heap empty OR target relative gap OR time limit", "status": "gap_limit", "ub": 34607.2, "lb": 34270.29912854031, "raw_gap_pct": 0.9734993627328584, "certified_gap_pct": 0.9734993627328584, "lower_bound_certified": true, "runtime_sec": 90.97, "nodes": 9, "nodes_created": 19, "nodes_pruned": 0, "nodes_cg_failed": 0, "root_lb": 34150.36666666667, "root_converged": true, "root_stop": null}

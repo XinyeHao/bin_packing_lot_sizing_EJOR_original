@@ -1,0 +1,135 @@
+{
+  "experiment": "E1: compact IM-LP versus paper-style root DW-CG lower bounds",
+  "purpose": "Compare compact-LP and DW lower bounds under the reference CG stopping rule.",
+  "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.",
+  "model_version": "common_unload_v2_span_link_ebrp_bpc_gap1_medium_large",
+  "generation_settings": {
+    "set_type": "small_cg",
+    "num_configs": 5,
+    "num_machines": 5,
+    "lead_time_choices": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "time_window": {
+      "length_range": [
+        12,
+        16
+      ],
+      "rel_frac": [
+        0.1,
+        0.5
+      ]
+    },
+    "machine_capacity_range": [
+      4.0,
+      6.5
+    ],
+    "tray_length_long_probability": 0.8,
+    "tray_length_long_range": [
+      1.0,
+      2.0
+    ],
+    "tray_length_short_range": [
+      0.5,
+      1.0
+    ],
+    "eligible_machine_count_range": [
+      2,
+      4
+    ],
+    "demand_periods_per_item": 2,
+    "scrap_setup_factor": 1.2
+  },
+  "scales": {
+    "medium": {
+      "T": 35,
+      "I": 50,
+      "seeds": [
+        30101,
+        30201,
+        30301,
+        30401,
+        30501,
+        31101,
+        31201,
+        31301,
+        31401,
+        31501,
+        31601,
+        31701,
+        31801,
+        31901,
+        32001
+      ]
+    }
+  },
+  "termination_rules": {
+    "initial_columns": "Gurobi initial columns receive 60/120/180 seconds for small/medium/large.",
+    "root_cg": "Stop at sum of pricing reduced costs > -0.1 or 500 iterations.",
+    "dw_bound": "max over rounds of LRMP + sum(min(RC_m, 0)).",
+    "comparison": "Rows with both valid lower bounds enter the comparison; exactness is reported separately.",
+    "im_lp_time_limit_sec": "scale-specific: 900/1800/3600 seconds",
+    "max_cg_iterations": 500
+  },
+  "summary": {
+    "instances": 2,
+    "both_valid_bounds": 2,
+    "both_exact": 0,
+    "mean_dw_over_im_lp_pct": 41.36968352777042
+  },
+  "rows": [
+    {
+      "scale": "medium",
+      "seed": 30101,
+      "T": 35,
+      "I": 50,
+      "im_lp_time_limit_sec": 1800.0,
+      "im_lp_status": "status_9",
+      "im_lp_lb": 26647.36412059615,
+      "im_lp_time_sec": 1820.299,
+      "root_cg_status": "sum_reduced_cost_threshold",
+      "root_cg_valid_lb": 40381.999999999985,
+      "root_cg_rmp_value": 40381.999999999985,
+      "root_cg_time_sec": 6.228,
+      "root_cg_iterations": 24,
+      "root_cg_columns": 107,
+      "root_cg_last_min_rc": -4.547473508864641e-13,
+      "root_cg_last_valid_lb": 40381.999999999985,
+      "both_valid_bounds": true,
+      "both_exact": false,
+      "dw_minus_im_lp": 13734.635879403835,
+      "dw_over_im_lp_pct": 51.54219313117025,
+      "error": null,
+      "im_lp_exact": false
+    },
+    {
+      "scale": "medium",
+      "seed": 30201,
+      "T": 35,
+      "I": 50,
+      "im_lp_time_limit_sec": 1800.0,
+      "im_lp_status": "status_9",
+      "im_lp_lb": 25071.477544906113,
+      "im_lp_time_sec": 2806.853,
+      "root_cg_status": "sum_reduced_cost_threshold",
+      "root_cg_valid_lb": 32893.06999999999,
+      "root_cg_rmp_value": 32893.06999999999,
+      "root_cg_time_sec": 5.188,
+      "root_cg_iterations": 34,
+      "root_cg_columns": 142,
+      "root_cg_last_min_rc": -9.094947017729282e-13,
+      "root_cg_last_valid_lb": 32893.06999999999,
+      "both_valid_bounds": true,
+      "both_exact": false,
+      "dw_minus_im_lp": 7821.59245509388,
+      "dw_over_im_lp_pct": 31.197173924370595,
+      "error": null,
+      "im_lp_exact": false
+    }
+  ]
+}

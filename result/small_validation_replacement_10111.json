@@ -1,0 +1,42 @@
+{
+  "experiment": "Small-scale IM (Gurobi) versus BPC validation",
+  "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.",
+  "scale": {
+    "T": 30,
+    "I": 40,
+    "U": 5,
+    "M": 5
+  },
+  "seeds": [
+    10111
+  ],
+  "time_limit_sec_per_method": 900.0,
+  "max_bpc_nodes": 8000,
+  "bpc_branch_strategy": "frac_sb",
+  "pricing_mode": "im_gurobi",
+  "pricing_note": "im_gurobi is the strict-validation oracle; ebrp is the accelerated experimental pricer.",
+  "criterion": "Both methods prove optimality, BPC has zero CG failures, and their objectives are equal within 1e-4.",
+  "summary": {
+    "instances": 1,
+    "both_proved": 0,
+    "same_objective": 0,
+    "validation_passed": 0
+  },
+  "rows": [
+    {
+      "seed": 10111,
+      "T": 30,
+      "I": 40,
+      "error": "RuntimeError: CG duplicate column: machine=m3 rc=-25.000000 iter=13 fingerprint already in pool (pool_size=13). Negative-RC rediscovery of an existing column is a bug.",
+      "im_status": "time_limit",
+      "im_objective": 29680.3,
+      "im_lower_bound": 26652.100000000002,
+      "im_gap_pct": 10.2027,
+      "im_runtime_sec": 901.59,
+      "im_proved": false,
+      "same_objective": false,
+      "both_proved": false,
+      "validation_passed": false
+    }
+  ]
+}

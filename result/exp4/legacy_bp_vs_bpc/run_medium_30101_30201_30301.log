@@ -1,0 +1,7 @@
+[1/3] medium seed=30101: BP then BPC; budget=1800s each
+  BP: UB=41165.9, gap=0.7248973697060074, nodes=13; BPC: UB=41258.7, gap=0.9488812745708395, nodes=31
+[2/3] medium seed=30201: BP then BPC; budget=1800s each
+  BP: UB=33677.1, gap=0.6200634151751862, nodes=13; BPC: UB=33677.1, gap=0.4247074916387528, nodes=11
+[3/3] medium seed=30301: BP then BPC; budget=1800s each
+  BP: UB=34952.299999999996, gap=0.9450692212294449, nodes=12; BPC: UB=34952.299999999996, gap=0.8664196121271639, nodes=5
+Finished. Summary: E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\result\exp4\legacy_bp_vs_bpc\summary.csv

@@ -1,0 +1,76 @@
+{
+  "experiment": "Small-scale IM (Gurobi) versus BPC validation",
+  "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.",
+  "scale": {
+    "T": 30,
+    "I": 40,
+    "U": 5,
+    "M": 5
+  },
+  "seeds": [
+    10111,
+    10112,
+    10113,
+    10114,
+    10115
+  ],
+  "time_limit_sec_per_method": 900.0,
+  "max_bpc_nodes": 8000,
+  "bpc_branch_strategy": "frac_sb",
+  "pricing_mode": "im_gurobi",
+  "pricing_note": "im_gurobi is the strict-validation oracle; ebrp is the accelerated experimental pricer.",
+  "criterion": "Both methods prove optimality, BPC has zero CG failures, and their objectives are equal within 1e-4.",
+  "summary": {
+    "instances": 3,
+    "both_proved": 0,
+    "same_objective": 0,
+    "validation_passed": 0
+  },
+  "rows": [
+    {
+      "seed": 10111,
+      "T": 30,
+      "I": 40,
+      "error": "RuntimeError: CG duplicate column: machine=m3 rc=-25.000000 iter=13 fingerprint already in pool (pool_size=13). Negative-RC rediscovery of an existing column is a bug.",
+      "im_status": "time_limit",
+      "im_objective": 29680.3,
+      "im_lower_bound": 26674.2,
+      "im_gap_pct": 10.1283,
+      "im_runtime_sec": 901.48,
+      "im_proved": false,
+      "same_objective": false,
+      "both_proved": false,
+      "validation_passed": false
+    },
+    {
+      "seed": 10112,
+      "T": 30,
+      "I": 40,
+      "error": "RuntimeError: CG duplicate column: machine=m0 rc=-172.173412 iter=26 fingerprint already in pool (pool_size=26). Negative-RC rediscovery of an existing column is a bug.",
+      "im_status": "optimal",
+      "im_objective": 14770.800000000003,
+      "im_lower_bound": 14770.800000000003,
+      "im_gap_pct": 0.0,
+      "im_runtime_sec": 885.84,
+      "im_proved": true,
+      "same_objective": false,
+      "both_proved": false,
+      "validation_passed": false
+    },
+    {
+      "seed": 10113,
+      "T": 30,
+      "I": 40,
+      "error": "RuntimeError: CG duplicate column: machine=m1 rc=-195.000000 iter=12 fingerprint already in pool (pool_size=12). Negative-RC rediscovery of an existing column is a bug.",
+      "im_status": "time_limit",
+      "im_objective": 29441.999999999996,
+      "im_lower_bound": 25770.6,
+      "im_gap_pct": 12.4699,
+      "im_runtime_sec": 902.02,
+      "im_proved": false,
+      "same_objective": false,
+      "both_proved": false,
+      "validation_passed": false
+    }
+  ]
+}

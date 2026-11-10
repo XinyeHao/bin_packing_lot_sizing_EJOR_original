@@ -1,0 +1,6 @@
+scale,seed,T,I,variant,cuts,time_limit_sec,pricing_time_limit_sec,status,ub,lb,gap_pct,lower_bound_certified,runtime_sec,nodes,nodes_created,nodes_pruned,nodes_cg_failed,root_lb,root_cg_converged,root_cg_stop
+small,10101,30,40,bpc_sri_only,"{'deadline_cover': False, 'sri': True, 'sri_max_cuts': 3, 'sri_violation_tol': 1e-06}",900.0,,optimal,27905.000000000004,27905.000000000004,0.0,True,329.816,89,89,45,0,27275.549999999992,True,
+small,10102,30,40,bpc_sri_only,"{'deadline_cover': False, 'sri': True, 'sri_max_cuts': 3, 'sri_violation_tol': 1e-06}",900.0,,optimal,28227.100000000002,28227.100000000002,0.0,True,162.336,43,43,22,0,27667.253333333323,True,
+small,10103,30,40,bpc_sri_only,"{'deadline_cover': False, 'sri': True, 'sri_max_cuts': 3, 'sri_violation_tol': 1e-06}",900.0,,optimal,20003.6,20003.6,0.0,True,153.953,29,29,15,0,19713.500000000022,True,
+small,10104,30,40,bpc_sri_only,"{'deadline_cover': False, 'sri': True, 'sri_max_cuts': 3, 'sri_violation_tol': 1e-06}",900.0,,optimal,33569.8,33569.8,0.0,True,94.74,17,17,9,0,33039.74430379746,True,
+small,10105,30,40,bpc_sri_only,"{'deadline_cover': False, 'sri': True, 'sri_max_cuts': 3, 'sri_violation_tol': 1e-06}",900.0,,optimal,29177.3,29177.3,0.0,True,500.396,155,155,78,0,28473.100000000006,True,

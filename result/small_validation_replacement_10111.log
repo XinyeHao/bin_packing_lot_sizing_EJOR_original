@@ -1,0 +1,19 @@
+Small validation: T=30, I=40, U=M=5; seeds=[10111]
+Per-method time limit: 900s; BPC max nodes: 8000
+
+[1/1] seed=10111: IM (Gurobi)
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+Freeing default Gurobi environment
+  IM: status=time_limit, obj=29680.3, gap=10.2027%, time=901.59s
+[1/1] seed=10111: BPC (frac_sb, pricing=im_gurobi)
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+Freeing default Gurobi environment
+  FAILED: RuntimeError: CG duplicate column: machine=m3 rc=-25.000000 iter=13 fingerprint already in pool (pool_size=13). Negative-RC rediscovery of an existing column is a bug.
+
+Finished: 0/1 instances passed exact validation.
+JSON: E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\result\small_validation_replacement_10111.json
+CSV:  E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\result\small_validation_replacement_10111.csv

@@ -1,0 +1,21 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=40888.40 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(1, 0, 20)=0.5000 y_min=1979.478
+  BP [1/8000] node 0 depth=0 LB=39589.57 branch Y(1, 0, 20)=0.5000 strategy=frac_sb (12.8s)
+    [frac-sb] refine k=5 confirm Y(4, 0, 9)=0.5057 y_min=1983.406
+  BP [2/8000] node 2 depth=1 LB=39668.13 branch Y(4, 0, 9)=0.5057 strategy=frac_sb (6.9s)
+    [CGFO node] incumbent=40108.00 (depth=1, budget=20s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 5)=0.5000 y_min=1999.063
+  BP [3/8000] node 1 depth=1 LB=39981.25 branch Y(0, 2, 5)=0.5000 strategy=frac_sb (11.8s)
+    [frac-sb] refine k=5 confirm Y(1, 1, 6)=0.5000 y_min=1985.121
+  BP [4/8000] node 4 depth=2 LB=39702.42 branch Y(1, 1, 6)=0.5000 strategy=frac_sb (7.0s)
+  BP [5/8000] node 3 kind=setup depth=2 pruned (Lagrangian LB ≥ 当前最好可行解, 8.5s)
+    [frac-sb] refine k=5 confirm wip i=1 W=0.4862 le0 y_min=1989.969
+  BP [6/8000] node 8 depth=3 LB=39799.37 branch wip i=1 W=0.4862 le0 strategy=frac_sb (7.3s)
+  BP [7/8000] node 7 kind=setup depth=3 pruned (Lagrangian LB ≥ 当前最好可行解, 5.1s)
+    [frac-sb] refine k=5 confirm wip i=37 W=0.5044 le0 y_min=1996.808
+  BP [8/8000] node 9 depth=4 LB=39936.16 branch wip i=37 W=0.5044 le0 strategy=frac_sb (7.6s)
+  BP stop: gap=0.769% ≤ 1.0% (UB=40108.00, tree_LB=39799.37, nodes=8)
+Freeing default Gurobi environment

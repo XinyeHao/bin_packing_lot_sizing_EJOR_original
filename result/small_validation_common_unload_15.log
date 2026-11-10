@@ -1,0 +1,7 @@
+Small validation: T=30, I=40, U=M=5; seeds=[10101, 10102, 10103, 10104, 10105, 10106, 10107, 10108, 10109, 10110, 10111, 10112, 10113, 10114, 10115]
+Per-method time limit: 900s; BPC max nodes: 8000
+
+[1/15] seed=10101: IM (Gurobi)
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24

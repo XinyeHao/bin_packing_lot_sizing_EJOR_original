@@ -1,0 +1,112 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=28491.10 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(1, 4, 8)=0.4800 y_min=1383.363
+  BP [1/8000] node 0 depth=0 LB=27667.25 branch Y(1, 4, 8)=0.4800 strategy=frac_sb (2.0s)
+    [frac-sb] refine k=5 confirm wip i=18 W=0.4638 le0 y_min=1389.460
+  BP [2/8000] node 2 depth=1 LB=27789.20 branch wip i=18 W=0.4638 le0 strategy=frac_sb (1.6s)
+    [frac-sb] refine k=5 confirm Y(2, 1, 6)=0.5000 y_min=1403.876
+  BP [3/8000] node 1 depth=1 LB=28077.53 branch Y(2, 1, 6)=0.5000 strategy=frac_sb (1.4s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 16)=0.5079 y_min=1393.362
+  BP [4/8000] node 3 depth=2 LB=27867.25 branch Y(2, 0, 16)=0.5079 strategy=frac_sb (1.6s)
+    [CGFO node] incumbent=28315.10 (depth=2, budget=20s)
+    [frac-sb] refine k=5 confirm wip i=21 W=0.4944 le0 y_min=1394.503
+  BP [5/8000] node 4 depth=2 LB=27890.06 branch wip i=21 W=0.4944 le0 strategy=frac_sb (1.8s)
+    [frac-sb] refine k=5 confirm wip i=39 W=0.5000 le0 y_min=1395.572
+  BP [6/8000] node 8 depth=3 LB=27911.43 branch wip i=39 W=0.5000 le0 strategy=frac_sb (1.8s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 7)=0.5000 y_min=1402.378
+  BP [7/8000] node 7 depth=3 LB=28047.55 branch Y(0, 2, 7)=0.5000 strategy=frac_sb (1.4s)
+    [frac-sb] refine k=5 confirm Y(2, 3, 17)=0.5060 y_min=1397.270
+  BP [8/8000] node 9 depth=3 LB=27945.40 branch Y(2, 3, 17)=0.5060 strategy=frac_sb (1.8s)
+    [frac-sb] refine k=5 confirm wip i=22 W=0.5455 le0 y_min=1396.948
+  BP [9/8000] node 10 depth=3 LB=27938.97 branch wip i=22 W=0.5455 le0 strategy=frac_sb (1.8s)
+    [frac-sb] refine k=5 confirm Y(1, 4, 22)=0.5455 y_min=1398.770
+  BP [10/8000] node 11 depth=4 LB=27975.39 branch Y(1, 4, 22)=0.5455 strategy=frac_sb (1.9s)
+    [frac-sb] refine k=5 confirm Y(1, 0, 10)=0.4713 y_min=1396.882
+  BP [11/8000] node 12 depth=4 LB=27937.65 branch Y(1, 0, 10)=0.4713 strategy=frac_sb (2.0s)
+    [frac-sb] refine k=5 confirm wip i=22 W=0.5000 le0 y_min=1402.299
+  BP [12/8000] node 22 depth=5 LB=28045.99 branch wip i=22 W=0.5000 le0 strategy=frac_sb (1.8s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 7)=0.5833 y_min=1405.204
+  BP [13/8000] node 21 depth=5 LB=28104.08 branch Y(0, 2, 7)=0.5833 strategy=frac_sb (1.5s)
+    [frac-sb] refine k=5 confirm Y(4, 3, 7)=0.6000 y_min=1399.304
+  BP [14/8000] node 17 depth=4 LB=27986.08 branch Y(4, 3, 7)=0.6000 strategy=frac_sb (1.7s)
+    [frac-sb] refine k=5 confirm Y(0, 2, 12)=0.5000 y_min=1403.576
+  BP [15/8000] node 18 depth=4 LB=28071.52 branch Y(0, 2, 12)=0.5000 strategy=frac_sb (2.1s)
+    [frac-sb] refine k=5 confirm Y(3, 0, 2)=0.5238 y_min=1399.646
+  BP [16/8000] node 16 depth=4 LB=27992.91 branch Y(3, 0, 2)=0.5238 strategy=frac_sb (1.7s)
+    [CGFO node] incumbent=28227.10 (depth=4, budget=20s)
+    [frac-sb] refine k=5 confirm Y(1, 0, 16)=0.5714 y_min=1408.654
+  BP [17/8000] node 15 depth=4 LB=28173.09 branch Y(1, 0, 16)=0.5714 strategy=frac_sb (2.1s)
+    [frac-sb] refine k=5 confirm scrap i=1 R=0.4545 y_min=1400.341
+  BP [18/8000] node 20 depth=5 LB=28006.82 branch scrap i=1 R=0.4545 strategy=frac_sb (1.9s)
+  BP [19/8000] node 19 kind=setup depth=5 pruned (Lagrangian LB ≥ 当前最好可行解, 1.6s)
+    [frac-sb] refine k=5 confirm Y(3, 0, 2)=0.4878 y_min=1407.704
+  BP [20/8000] node 28 depth=5 LB=28154.09 branch Y(3, 0, 2)=0.4878 strategy=frac_sb (2.0s)
+    [frac-sb] refine k=5 confirm Y(1, 0, 10)=0.5000 y_min=1403.170
+  BP [21/8000] node 27 depth=5 LB=28063.40 branch Y(1, 0, 10)=0.5000 strategy=frac_sb (1.9s)
+    [frac-sb] refine k=5 confirm scrap i=39 R=0.5152 y_min=1410.242
+  BP [22/8000] node 32 depth=5 LB=28204.85 branch scrap i=39 R=0.5152 strategy=frac_sb (1.8s)
+    [frac-sb] refine k=5 confirm wip i=1 W=0.5517 le0 y_min=1403.067
+  BP [23/8000] node 31 depth=5 LB=28061.34 branch wip i=1 W=0.5517 le0 strategy=frac_sb (1.7s)
+    [frac-sb] refine k=5 confirm Y(3, 2, 17)=0.5000 y_min=1411.318
+  BP [24/8000] node 35 depth=6 LB=28226.36 branch Y(3, 2, 17)=0.5000 strategy=frac_sb (2.3s)
+    [frac-sb] refine k=5 confirm Y(0, 0, 16)=0.5000 y_min=1407.680
+  BP [25/8000] node 36 depth=6 LB=28153.60 branch Y(0, 0, 16)=0.5000 strategy=frac_sb (2.2s)
+    [frac-sb] refine k=5 confirm Y(4, 3, 7)=0.5180 y_min=1408.861
+  BP [26/8000] node 23 depth=6 LB=28177.21 branch Y(4, 3, 7)=0.5180 strategy=frac_sb (2.0s)
+  BP [27/8000] node 24 kind=wip_ge_lazy depth=6 pruned (Lagrangian LB ≥ 当前最好可行解, 2.0s)
+  BP [28/8000] node 14 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 1.4s)
+  BP [29/8000] node 13 kind=setup depth=4 pruned (Lagrangian LB ≥ 当前最好可行解, 1.2s)
+Freeing default Gurobi environment
+Traceback (most recent call last):
+  File "E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\experiments\paper_experiment_worker.py", line 96, in <module>
+    if __name__=="__main__": main()
+                             ~~~~^^
+  File "E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\experiments\paper_experiment_worker.py", line 80, in main
+    result=solver.solve(); certified=(result.nodes_cg_failed==0 and result.lower_bound is not None)
+  File "E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\model_and_algo\branch_and_price.py", line 1114, in solve
+    new_ub, new_fy = self._try_cgfo(
+                     ~~~~~~~~~~~~~~^
+        cg, incumbent, cgfo_budget, merge_fixed_y=node.fixed_y
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\model_and_algo\branch_and_price.py", line 476, in _try_cgfo
+    new_ub, new_fy = self._try_incumbent(cgfo_fy, incumbent, budget)
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\model_and_algo\branch_and_price.py", line 446, in _try_incumbent
+    im = solve_im(
+        self.data,
+    ...<3 lines>...
+        method="branch_and_price",
+    )
+  File "E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\model_and_algo\im_model.py", line 317, in solve_im
+    model, vars_bundle = build_im_model(
+                         ~~~~~~~~~~~~~~^
+        data,
+        ^^^^^
+    ...<3 lines>...
+        verbose=verbose,
+        ^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\model_and_algo\im_model.py", line 241, in build_im_model
+    model.addConstrs(
+    ~~~~~~~~~~~~~~~~^
+        (
+        ^
+    ...<10 lines>...
+        name="no_overlap",
+        ^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "src/gurobipy/_model.pyx", line 4240, in gurobipy._model.Model.addConstrs
+  File "E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\model_and_algo\im_model.py", line 244, in <genexpr>
+    - bar_m * (2 - Y[u_idx, m_idx, t_idx] - Y[u2_idx, m_idx, t2_idx])
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~
+  File "src/gurobipy/linexpr.pxi", line 517, in gurobipy._core.LinExpr.__sub__
+  File "src/gurobipy/linexpr.pxi", line 491, in gurobipy._core.LinExpr.__add__
+  File "src/gurobipy/linexpr.pxi", line 42, in gurobipy._core.LinExpr.__init__
+  File "<frozen abc>", line 117, in __instancecheck__
+KeyboardInterrupt

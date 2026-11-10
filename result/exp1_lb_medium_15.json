@@ -1,0 +1,145 @@
+{
+  "experiment": "Lower-bound comparison: compact IM-LP versus pure root DW-CG",
+  "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.",
+  "model_version": "common_unload_v2_span_link",
+  "generation_settings": {
+    "set_type": "small_cg",
+    "num_configs": 5,
+    "num_machines": 5,
+    "lead_time_choices": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "time_window": {
+      "length_range": [
+        12,
+        16
+      ],
+      "rel_frac": [
+        0.1,
+        0.5
+      ]
+    },
+    "machine_capacity_range": [
+      4.0,
+      6.5
+    ],
+    "tray_length_long_probability": 0.8,
+    "tray_length_long_range": [
+      1.0,
+      2.0
+    ],
+    "tray_length_short_range": [
+      0.5,
+      1.0
+    ],
+    "eligible_machine_count_range": [
+      2,
+      4
+    ],
+    "demand_periods_per_item": 2,
+    "scrap_setup_factor": 1.2
+  },
+  "scale": {
+    "name": "medium",
+    "T": 35,
+    "I": 50,
+    "U": 5,
+    "M": 5
+  },
+  "seeds": [
+    20001,
+    20002,
+    20003,
+    20004,
+    20005,
+    20006,
+    20007,
+    20008,
+    20009,
+    20010,
+    20011,
+    20012,
+    20013,
+    20014,
+    20015
+  ],
+  "time_limit_sec_per_method": 1800.0,
+  "im_lp_limit_interpretation": "The wall-clock cap includes generation, preprocessing, model construction, and Gurobi optimisation.",
+  "max_cg_iterations": 500,
+  "pricing_time_limit_sec": 90.0,
+  "dw_settings": {
+    "pricing": "im_gurobi (exact)",
+    "root_only": true,
+    "lrmp_cuts": "none",
+    "interpretation": "A converged DW-CG value is the pure DW LP lower bound; interrupted runs report only last_valid_lower_bound."
+  },
+  "summary": {
+    "completed": 3,
+    "dw_converged": 0,
+    "mean_dw_over_im_lp_pct": null
+  },
+  "rows": [
+    {
+      "seed": 20001,
+      "T": 35,
+      "I": 50,
+      "error": null,
+      "im_lp_status": "wall_time_limit",
+      "im_lp_lb": null,
+      "im_lp_time_sec": 1800.022,
+      "dw_cg_status": "converged",
+      "dw_cg_converged": true,
+      "dw_cg_lp_lb": 32627.129032258075,
+      "dw_cg_last_valid_lb": 32627.129032256405,
+      "dw_cg_time_sec": 1513.762,
+      "dw_cg_iterations": 33,
+      "dw_cg_columns": 143,
+      "dw_cg_last_min_rc": 0.0,
+      "dw_minus_im_lp": null,
+      "dw_over_im_lp_pct": null
+    },
+    {
+      "seed": 20002,
+      "T": 35,
+      "I": 50,
+      "error": null,
+      "im_lp_status": "optimal",
+      "im_lp_lb": 23254.633001644157,
+      "im_lp_time_sec": 270.857,
+      "dw_cg_status": "pricing_time_limit",
+      "dw_cg_converged": false,
+      "dw_cg_lp_lb": null,
+      "dw_cg_last_valid_lb": 28864.217625899215,
+      "dw_cg_time_sec": 1777.84,
+      "dw_cg_iterations": 37,
+      "dw_cg_columns": 185,
+      "dw_cg_last_min_rc": -93.81941747572864,
+      "dw_minus_im_lp": null,
+      "dw_over_im_lp_pct": null
+    },
+    {
+      "seed": 20003,
+      "T": 35,
+      "I": 50,
+      "error": null,
+      "im_lp_status": "optimal",
+      "im_lp_lb": 14837.149348370926,
+      "im_lp_time_sec": 55.141,
+      "dw_cg_status": "pricing_time_limit",
+      "dw_cg_converged": false,
+      "dw_cg_lp_lb": null,
+      "dw_cg_last_valid_lb": -6949.000000000007,
+      "dw_cg_time_sec": 29272.389,
+      "dw_cg_iterations": 1,
+      "dw_cg_columns": 10,
+      "dw_cg_last_min_rc": -11862.099999999999,
+      "dw_minus_im_lp": null,
+      "dw_over_im_lp_pct": null
+    }
+  ]
+}

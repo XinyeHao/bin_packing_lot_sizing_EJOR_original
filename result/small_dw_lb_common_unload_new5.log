@@ -1,0 +1,22 @@
+DW lower-bound comparison: T=30, I=40, seeds=[10111, 10112, 10113, 10114, 10115]
+Per method limit=900s; pure DW root CG uses exact Gurobi pricing and no cuts.
+[1/5] seed=10111: IM-LP
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+  IM-LP=21445.977796871673, time=30.19s
+[1/5] seed=10111: root DW-CG
+  FAILED: RuntimeError: CG duplicate column: machine=m3 rc=-52.162500 iter=14 fingerprint already in pool (pool_size=14). Negative-RC rediscovery of an existing column is a bug.
+Freeing default Gurobi environment
+[2/5] seed=10112: IM-LP
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+  IM-LP=11673.9655329602, time=12.16s
+[2/5] seed=10112: root DW-CG
+  FAILED: RuntimeError: CG duplicate column: machine=m3 rc=-110.400000 iter=26 fingerprint already in pool (pool_size=26). Negative-RC rediscovery of an existing column is a bug.
+Freeing default Gurobi environment
+[3/5] seed=10113: IM-LP
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24

@@ -1,0 +1,16 @@
+{
+  "scale": "large",
+  "seed": 42001,
+  "T": 40,
+  "I": 55,
+  "time_limit_sec": 3600.0,
+  "status": "time_limit",
+  "ub": 26874.6,
+  "lb": 26395.6700421629,
+  "gap_pct": 1.7820914835461708,
+  "runtime_sec": 3602.428,
+  "nodes": 240,
+  "nodes_cg_failed": 157,
+  "model_version": "common_unload_v2_span_link_ebrp_bpc_gap1_medium_large",
+  "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration."
+}

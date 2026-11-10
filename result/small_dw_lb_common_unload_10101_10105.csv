@@ -1,0 +1,2 @@
+﻿seed,T,I,im_lp_status,im_lp_lb,im_lp_time_sec,dw_cg_status,dw_cg_converged,dw_cg_lp_lb,dw_cg_last_valid_lb,dw_cg_time_sec,dw_cg_iterations,dw_cg_columns,dw_cg_last_min_rc,dw_minus_im_lp,dw_over_im_lp_pct,error
+10101,30,40,optimal,22277.79014652015,8.324,converged,True,27275.54999999999,27275.54999999999,187.778,25,116,0.0,4997.759853479838,22.4338222983957,

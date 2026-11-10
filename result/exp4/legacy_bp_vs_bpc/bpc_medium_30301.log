@@ -1,0 +1,17 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=34952.30 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(4, 3, 12)=0.5000 y_min=1720.274
+  BP [1/8000] node 0 depth=0 LB=34405.47 branch Y(4, 3, 12)=0.5000 strategy=frac_sb (8.5s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 4)=0.5909 y_min=1722.834
+  BP [2/8000] node 2 depth=1 LB=34456.68 branch Y(2, 0, 4)=0.5909 strategy=frac_sb (5.5s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 7)=0.5000 y_min=1733.720
+  BP [3/8000] node 1 depth=1 LB=34674.40 branch Y(2, 0, 7)=0.5000 strategy=frac_sb (5.5s)
+    [frac-sb] refine k=5 confirm wip i=14 W=0.5299 le0 y_min=1732.473
+  BP [4/8000] node 4 depth=2 LB=34649.47 branch wip i=14 W=0.5299 le0 strategy=frac_sb (5.7s)
+    [frac-sb] refine k=5 confirm wip i=3 W=0.4992 le0 y_min=1734.737
+  BP [5/8000] node 3 depth=2 LB=34694.75 branch wip i=3 W=0.4992 le0 strategy=frac_sb (5.2s)
+  BP stop: gap=0.866% ¡Ü 1.0% (UB=34952.30, tree_LB=34649.47, nodes=5)
+Freeing default Gurobi environment
+{"experiment": "Exp4 legacy BP versus BPC deadline-cover-cut ablation", "method": "BPC", "scale": "medium", "seed": 30301, "T": 35, "I": 50, "time_limit_sec": 1800.0, "target_mip_gap": 0.01, "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.", "model_version": "common_unload_v2_span_link_legacy_cut_ablation", "pricing_mode": "ebrp", "cuts": "standard", "strict_cg_certification": false, "controlled_difference": "lrmp_cuts only", "algorithm_parameters": {"branch_strategy": "frac_sb", "use_gurobi_init": true, "pricing_inprocess": true, "ebrp_force": true, "ebrp_time_limit": 20.0, "max_iterations": 120, "max_nodes": 8000, "use_node_im": false, "root_im": false, "final_im": false}, "termination_rule": "pending-node heap empty OR target relative gap OR time limit", "status": "gap_limit", "ub": 34952.299999999996, "lb": 34649.46641791047, "raw_gap_pct": 0.8664196121271639, "certified_gap_pct": 0.8664196121271639, "lower_bound_certified": true, "runtime_sec": 41.083, "nodes": 5, "nodes_created": 11, "nodes_pruned": 0, "nodes_cg_failed": 0, "root_lb": 34405.470000000016, "root_converged": true, "root_stop": null}

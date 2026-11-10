@@ -1,0 +1,51 @@
+{
+  "experiment": "Small-scale lower-bound comparison: compact IM-LP versus pure root DW-CG",
+  "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.",
+  "model_version": "common_unload_v1",
+  "scale": {
+    "T": 30,
+    "I": 40,
+    "U": 5,
+    "M": 5
+  },
+  "seeds": [
+    10111,
+    10112,
+    10113,
+    10114,
+    10115
+  ],
+  "time_limit_sec_per_method": 900.0,
+  "max_cg_iterations": 500,
+  "dw_settings": {
+    "pricing": "im_gurobi (exact)",
+    "root_only": true,
+    "lrmp_cuts": "none",
+    "interpretation": "A converged DW-CG value is the pure DW LP lower bound; interrupted runs report only last_valid_lower_bound."
+  },
+  "summary": {
+    "completed": 0,
+    "dw_converged": 0,
+    "mean_dw_over_im_lp_pct": null
+  },
+  "rows": [
+    {
+      "seed": 10111,
+      "T": 30,
+      "I": 40,
+      "error": "RuntimeError: CG duplicate column: machine=m3 rc=-52.162500 iter=14 fingerprint already in pool (pool_size=14). Negative-RC rediscovery of an existing column is a bug.",
+      "im_lp_status": "optimal",
+      "im_lp_lb": 21445.977796871673,
+      "im_lp_time_sec": 30.192
+    },
+    {
+      "seed": 10112,
+      "T": 30,
+      "I": 40,
+      "error": "RuntimeError: CG duplicate column: machine=m3 rc=-110.400000 iter=26 fingerprint already in pool (pool_size=26). Negative-RC rediscovery of an existing column is a bug.",
+      "im_lp_status": "optimal",
+      "im_lp_lb": 11673.9655329602,
+      "im_lp_time_sec": 12.157
+    }
+  ]
+}

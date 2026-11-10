@@ -1,0 +1,30 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=34952.30 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(4, 3, 7)=0.5000 y_min=1720.274
+  BP [1/8000] node 0 depth=0 LB=34405.47 branch Y(4, 3, 7)=0.5000 strategy=frac_sb (9.1s)
+    [frac-sb] refine k=5 confirm Y(2, 2, 18)=0.5312 y_min=1723.905
+  BP [2/8000] node 2 depth=1 LB=34478.10 branch Y(2, 2, 18)=0.5312 strategy=frac_sb (4.8s)
+    [frac-sb] refine k=5 confirm Y(2, 2, 18)=0.4962 y_min=1724.163
+  BP [3/8000] node 1 depth=1 LB=34483.27 branch Y(2, 2, 18)=0.4962 strategy=frac_sb (4.8s)
+    [frac-sb] refine k=5 confirm Y(2, 0, 4)=0.5000 y_min=1725.776
+  BP [4/8000] node 4 depth=2 LB=34515.52 branch Y(2, 0, 4)=0.5000 strategy=frac_sb (5.8s)
+    [frac-sb] refine k=5 confirm wip i=14 W=0.4576 le0 y_min=1733.464
+  BP [5/8000] node 3 depth=2 LB=34669.28 branch wip i=14 W=0.4576 le0 strategy=frac_sb (4.6s)
+    [frac-sb] refine k=5 confirm Y(3, 2, 18)=0.5312 y_min=1729.511
+  BP [6/8000] node 6 depth=2 LB=34590.22 branch Y(3, 2, 18)=0.5312 strategy=frac_sb (5.1s)
+    [frac-sb] refine k=5 confirm scrap i=40 R=0.5294 y_min=1731.099
+  BP [7/8000] node 5 depth=2 LB=34621.98 branch scrap i=40 R=0.5294 strategy=frac_sb (3.4s)
+    [frac-sb] refine k=5 confirm Y(1, 3, 21)=0.5000 y_min=1738.525
+  BP [8/8000] node 8 depth=3 LB=34770.50 branch Y(1, 3, 21)=0.5000 strategy=frac_sb (5.6s)
+    [frac-sb] refine k=5 confirm Y(1, 3, 21)=0.5345 y_min=1734.718
+  BP [9/8000] node 7 depth=3 LB=34694.36 branch Y(1, 3, 21)=0.5345 strategy=frac_sb (6.0s)
+    [frac-sb] refine k=5 confirm Y(2, 2, 19)=0.5000 y_min=1731.932
+  BP [10/8000] node 12 depth=3 LB=34638.64 branch Y(2, 2, 19)=0.5000 strategy=frac_sb (4.9s)
+  BP [11/8000] node 11 kind=setup depth=3 pruned (Lagrangian LB ≥ 当前最好可行解, 3.7s)
+    [frac-sb] refine k=5 confirm Y(3, 3, 16)=0.6667 y_min=1739.617
+  BP [12/8000] node 13 depth=3 LB=34792.33 branch Y(3, 3, 16)=0.6667 strategy=frac_sb (4.6s)
+  BP stop: gap=0.945% ≤ 1.0% (UB=34952.30, tree_LB=34621.98, nodes=12)
+Freeing default Gurobi environment
+{"experiment": "Exp4 legacy BP versus BPC deadline-cover-cut ablation", "method": "BP", "scale": "medium", "seed": 30301, "T": 35, "I": 50, "time_limit_sec": 1800.0, "target_mip_gap": 0.01, "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.", "model_version": "common_unload_v2_span_link_legacy_cut_ablation_deadline_e", "pricing_mode": "ebrp", "cuts": "none", "strict_cg_certification": false, "controlled_difference": "lrmp_cuts only", "algorithm_parameters": {"branch_strategy": "frac_sb", "use_gurobi_init": true, "pricing_inprocess": true, "ebrp_force": true, "ebrp_time_limit": 20.0, "max_iterations": 120, "max_nodes": 8000, "use_node_im": false, "root_im": false, "final_im": false}, "termination_rule": "pending-node heap empty OR target relative gap OR time limit", "status": "gap_limit", "ub": 34952.299999999996, "lb": 34621.97657058822, "raw_gap_pct": 0.9450692212294449, "certified_gap_pct": 0.9450692212294449, "lower_bound_certified": true, "runtime_sec": 86.455, "nodes": 12, "nodes_created": 23, "nodes_pruned": 1, "nodes_cg_failed": 0, "root_lb": 34405.470000000016, "root_converged": true, "root_stop": null}

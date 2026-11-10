@@ -1,0 +1,123 @@
+{
+  "experiment": "controlled four-way BP/BPC cut ablation",
+  "model_version": "common_unload_v2_span_link_ebrp_bpc_gap1_medium_large",
+  "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.",
+  "variants": {
+    "bp_no_cut": "none",
+    "bpc_deadline": "standard",
+    "bpc_sri_only": {
+      "deadline_cover": false,
+      "sri": true,
+      "sri_max_cuts": 3,
+      "sri_violation_tol": 1e-06
+    },
+    "bpc_deadline_sri": "sri"
+  },
+  "settings": {
+    "strict_cg_certification": true,
+    "pricing_mode": "ebrp",
+    "pricing_time_limit_sec": null,
+    "branch_strategy": "frac_sb"
+  },
+  "summary": {
+    "small": {
+      "bp_no_cut": {
+        "n": 0,
+        "n_certified": 0,
+        "n_gap_at_or_below_1pct": 0,
+        "mean_ub": null,
+        "mean_certified_lb": null,
+        "mean_certified_gap_pct": null,
+        "mean_runtime_sec": null,
+        "mean_nodes": null,
+        "mean_root_lb": null
+      },
+      "bpc_deadline": {
+        "n": 0,
+        "n_certified": 0,
+        "n_gap_at_or_below_1pct": 0,
+        "mean_ub": null,
+        "mean_certified_lb": null,
+        "mean_certified_gap_pct": null,
+        "mean_runtime_sec": null,
+        "mean_nodes": null,
+        "mean_root_lb": null
+      },
+      "bpc_sri_only": {
+        "n": 1,
+        "n_certified": 1,
+        "n_gap_at_or_below_1pct": 1,
+        "mean_ub": 28381.100000000002,
+        "mean_certified_lb": 28381.100000000002,
+        "mean_certified_gap_pct": 0.0,
+        "mean_runtime_sec": 196.76,
+        "mean_nodes": 57.0,
+        "mean_root_lb": 27667.253333333323
+      },
+      "bpc_deadline_sri": {
+        "n": 1,
+        "n_certified": 1,
+        "n_gap_at_or_below_1pct": 1,
+        "mean_ub": 28227.100000000002,
+        "mean_certified_lb": 28227.100000000002,
+        "mean_certified_gap_pct": 0.0,
+        "mean_runtime_sec": 139.943,
+        "mean_nodes": 33.0,
+        "mean_root_lb": 27769.899999999983
+      }
+    }
+  },
+  "rows": [
+    {
+      "scale": "small",
+      "seed": 10102,
+      "T": 30,
+      "I": 40,
+      "variant": "bpc_sri_only",
+      "cuts": {
+        "deadline_cover": false,
+        "sri": true,
+        "sri_max_cuts": 3,
+        "sri_violation_tol": 1e-06
+      },
+      "time_limit_sec": 900.0,
+      "pricing_time_limit_sec": null,
+      "status": "optimal",
+      "ub": 28381.100000000002,
+      "lb": 28381.100000000002,
+      "gap_pct": 0.0,
+      "lower_bound_certified": true,
+      "runtime_sec": 196.76,
+      "nodes": 57,
+      "nodes_created": 57,
+      "nodes_pruned": 29,
+      "nodes_cg_failed": 0,
+      "root_lb": 27667.253333333323,
+      "root_cg_converged": true,
+      "root_cg_stop": null
+    },
+    {
+      "scale": "small",
+      "seed": 10102,
+      "T": 30,
+      "I": 40,
+      "variant": "bpc_deadline_sri",
+      "cuts": "sri",
+      "time_limit_sec": 900.0,
+      "pricing_time_limit_sec": null,
+      "status": "optimal",
+      "ub": 28227.100000000002,
+      "lb": 28227.100000000002,
+      "gap_pct": 0.0,
+      "lower_bound_certified": true,
+      "runtime_sec": 139.943,
+      "nodes": 33,
+      "nodes_created": 33,
+      "nodes_pruned": 17,
+      "nodes_cg_failed": 0,
+      "root_lb": 27769.899999999983,
+      "root_cg_converged": true,
+      "root_cg_stop": null
+    }
+  ]
+}

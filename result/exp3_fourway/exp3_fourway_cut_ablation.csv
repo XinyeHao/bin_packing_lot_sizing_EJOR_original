@@ -1,0 +1,3 @@
+scale,seed,T,I,variant,cuts,time_limit_sec,pricing_time_limit_sec,status,ub,lb,gap_pct,lower_bound_certified,runtime_sec,nodes,nodes_created,nodes_pruned,nodes_cg_failed,root_lb,root_cg_converged,root_cg_stop
+small,10102,30,40,bpc_sri_only,"{'deadline_cover': False, 'sri': True, 'sri_max_cuts': 3, 'sri_violation_tol': 1e-06}",900.0,,optimal,28381.100000000002,28381.100000000002,0.0,True,196.76,57,57,29,0,27667.253333333323,True,
+small,10102,30,40,bpc_deadline_sri,sri,900.0,,optimal,28227.100000000002,28227.100000000002,0.0,True,139.943,33,33,17,0,27769.899999999983,True,

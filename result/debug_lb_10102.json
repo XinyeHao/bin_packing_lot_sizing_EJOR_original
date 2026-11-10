@@ -1,0 +1,93 @@
+{
+  "experiment": "Lower-bound comparison: compact IM-LP versus pure root DW-CG",
+  "process_assumption": "All items in a batch leave the autoclave and enter inventory together at the batch maximum curing duration.",
+  "model_version": "common_unload_v2_span_link",
+  "generation_settings": {
+    "set_type": "small_cg",
+    "num_configs": 5,
+    "num_machines": 5,
+    "lead_time_choices": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "time_window": {
+      "length_range": [
+        12,
+        16
+      ],
+      "rel_frac": [
+        0.1,
+        0.5
+      ]
+    },
+    "machine_capacity_range": [
+      4.0,
+      6.5
+    ],
+    "tray_length_long_probability": 0.8,
+    "tray_length_long_range": [
+      1.0,
+      2.0
+    ],
+    "tray_length_short_range": [
+      0.5,
+      1.0
+    ],
+    "eligible_machine_count_range": [
+      2,
+      4
+    ],
+    "demand_periods_per_item": 2,
+    "scrap_setup_factor": 1.2
+  },
+  "scale": {
+    "name": "small",
+    "T": 30,
+    "I": 40,
+    "U": 5,
+    "M": 5
+  },
+  "seeds": [
+    10102
+  ],
+  "time_limit_sec_per_method": 900.0,
+  "im_lp_limit_interpretation": "The wall-clock cap includes generation, preprocessing, model construction, and Gurobi optimisation.",
+  "max_cg_iterations": 500,
+  "pricing_time_limit_sec": 90.0,
+  "dw_settings": {
+    "pricing": "im_gurobi (exact)",
+    "root_only": true,
+    "lrmp_cuts": "none",
+    "interpretation": "A converged DW-CG value is the pure DW LP lower bound; interrupted runs report only last_valid_lower_bound."
+  },
+  "summary": {
+    "completed": 1,
+    "dw_converged": 0,
+    "mean_dw_over_im_lp_pct": null
+  },
+  "rows": [
+    {
+      "seed": 10102,
+      "T": 30,
+      "I": 40,
+      "error": null,
+      "im_lp_status": "wall_time_limit",
+      "im_lp_lb": null,
+      "im_lp_time_sec": 900.021,
+      "dw_cg_status": "converged",
+      "dw_cg_converged": true,
+      "dw_cg_lp_lb": 27667.253333333323,
+      "dw_cg_last_valid_lb": 27667.253333333323,
+      "dw_cg_time_sec": 147.57,
+      "dw_cg_iterations": 23,
+      "dw_cg_columns": 103,
+      "dw_cg_last_min_rc": 0.0,
+      "dw_minus_im_lp": null,
+      "dw_over_im_lp_pct": null
+    }
+  ]
+}

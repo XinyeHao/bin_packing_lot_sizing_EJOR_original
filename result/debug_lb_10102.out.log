@@ -1,0 +1,41 @@
+DW lower-bound comparison: T=30, I=40, seeds=[10102]
+Per method limit=900s; pure DW root CG uses exact Gurobi pricing and no cuts.
+[1/1] seed=10102: IM-LP
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+  IM-LP=None status=wall_time_limit, time=900.02s
+[1/1] seed=10102: root DW-CG
+列生成启动: set_small_cg_102  |I|=40 |M|=5 |T|=30 init=Gurobi(IM)  iter=Gurobi(IM)
+初始列定价: Gurobi(IM) (|M|=5, |I|=40, |T|=30)
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+初始列完成: 共 5 列
+[CG    1] LRMP=    48459.00  min_RC= -8903.4000  new_cols=  5  total_cols=  10  master=  0.00s  pricing=  8.13s  (Gurobi(IM))
+[CG    2] LRMP=    38281.10  min_RC= -6083.1000  new_cols=  5  total_cols=  15  master=  0.01s  pricing=  6.76s  (Gurobi(IM))
+[CG    3] LRMP=    34948.70  min_RC= -5685.1000  new_cols=  5  total_cols=  20  master=  0.00s  pricing=  6.54s  (Gurobi(IM))
+[CG    4] LRMP=    33111.85  min_RC= -5283.9000  new_cols=  5  total_cols=  25  master=  0.00s  pricing=  6.35s  (Gurobi(IM))
+[CG    5] LRMP=    31558.45  min_RC= -3882.5083  new_cols=  5  total_cols=  30  master=  0.00s  pricing=  5.40s  (Gurobi(IM))
+[CG    6] LRMP=    30716.70  min_RC= -3045.6000  new_cols=  5  total_cols=  35  master=  0.00s  pricing=  4.92s  (Gurobi(IM))
+[CG    7] LRMP=    29737.58  min_RC= -2916.2725  new_cols=  5  total_cols=  40  master=  0.00s  pricing=  5.10s  (Gurobi(IM))
+[CG    8] LRMP=    28827.79  min_RC= -2524.0850  new_cols=  5  total_cols=  45  master=  0.01s  pricing=  5.34s  (Gurobi(IM))
+[CG    9] LRMP=    28590.86  min_RC= -1396.3417  new_cols=  5  total_cols=  50  master=  0.00s  pricing=  5.79s  (Gurobi(IM))
+[CG   10] LRMP=    28402.16  min_RC= -1151.7519  new_cols=  5  total_cols=  55  master=  0.00s  pricing=  6.29s  (Gurobi(IM))
+[CG   11] LRMP=    28268.17  min_RC=  -535.6096  new_cols=  5  total_cols=  60  master=  0.01s  pricing=  6.61s  (Gurobi(IM))
+[CG   12] LRMP=    28202.82  min_RC=  -910.1152  new_cols=  5  total_cols=  65  master=  0.01s  pricing=  6.30s  (Gurobi(IM))
+[CG   13] LRMP=    28128.65  min_RC=  -538.9500  new_cols=  5  total_cols=  70  master=  0.00s  pricing=  6.60s  (Gurobi(IM))
+[CG   14] LRMP=    27998.46  min_RC=  -666.3405  new_cols=  5  total_cols=  75  master=  0.00s  pricing=  6.26s  (Gurobi(IM))
+[CG   15] LRMP=    27928.17  min_RC=  -345.2000  new_cols=  5  total_cols=  80  master=  0.00s  pricing=  6.61s  (Gurobi(IM))
+[CG   16] LRMP=    27815.22  min_RC=  -246.0286  new_cols=  4  total_cols=  84  master=  0.00s  pricing=  6.62s  (Gurobi(IM))
+[CG   17] LRMP=    27750.68  min_RC=  -291.9563  new_cols=  4  total_cols=  88  master=  0.00s  pricing=  6.59s  (Gurobi(IM))
+[CG   18] LRMP=    27721.90  min_RC=  -238.8701  new_cols=  4  total_cols=  92  master=  0.00s  pricing=  6.53s  (Gurobi(IM))
+[CG   19] LRMP=    27684.93  min_RC=  -265.3458  new_cols=  4  total_cols=  96  master=  0.00s  pricing=  6.37s  (Gurobi(IM))
+[CG   20] LRMP=    27669.82  min_RC=   -71.2500  new_cols=  3  total_cols=  99  master=  0.00s  pricing=  6.50s  (Gurobi(IM))
+[CG   21] LRMP=    27667.25  min_RC=   -30.7133  new_cols=  3  total_cols= 102  master=  0.00s  pricing=  6.81s  (Gurobi(IM))
+[CG   22] LRMP=    27667.25  min_RC=   -18.4433  new_cols=  1  total_cols= 103  master=  0.00s  pricing=  6.54s  (Gurobi(IM))
+[CG   23] LRMP=    27667.25  min_RC=    -0.0000  new_cols=  0  total_cols= 103  master=  0.00s  pricing=  6.71s  (Gurobi(IM))
+列生成收敛: LRMP=27667.25  迭代=23  列数=103  耗时=147.3s
+Freeing default Gurobi environment
+  DW-CG=27667.253333333323 status=converged time=147.57s improvement=None
+Finished. JSON: E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\result\debug_lb_10102.json; CSV: E:\python wenjian heji\bin_packing_lot_sizing_EJOR_original-main\result\debug_lb_10102.csv

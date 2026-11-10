@@ -1,0 +1,29 @@
+Set parameter Username
+Set parameter LicenseID to value 2847901
+Academic license - for non-commercial use only - expires 2027-07-24
+    [CGFO] incumbent=35012.70 (budget=40s)
+    [frac-sb] refine k=5 confirm Y(3, 0, 8)=0.4815 y_min=1707.518
+  BP [1/8000] node 0 depth=0 LB=34150.37 branch Y(3, 0, 8)=0.4815 strategy=frac_sb (16.6s)
+    [frac-sb] refine k=5 confirm wip i=3 W=0.4973 le0 y_min=1708.975
+  BP [2/8000] node 2 depth=1 LB=34179.49 branch wip i=3 W=0.4973 le0 strategy=frac_sb (6.9s)
+    [frac-sb] refine k=5 confirm Y(1, 4, 21)=0.4944 y_min=1718.514
+  BP [3/8000] node 1 depth=1 LB=34370.27 branch Y(1, 4, 21)=0.4944 strategy=frac_sb (8.5s)
+    [frac-sb] refine k=5 confirm Y(4, 4, 16)=0.4413 y_min=1714.110
+  BP [4/8000] node 3 depth=2 LB=34282.21 branch Y(4, 4, 16)=0.4413 strategy=frac_sb (5.8s)
+    [frac-sb] refine k=5 confirm Y(4, 1, 8)=0.5978 y_min=1710.622
+  BP [5/8000] node 4 depth=2 LB=34212.43 branch Y(4, 1, 8)=0.5978 strategy=frac_sb (6.6s)
+    [frac-sb] refine k=5 confirm Y(4, 1, 13)=0.4841 y_min=1713.001
+  BP [6/8000] node 10 depth=3 LB=34260.03 branch Y(4, 1, 13)=0.4841 strategy=frac_sb (5.3s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 23)=0.4444 y_min=1715.539
+  BP [7/8000] node 9 depth=3 LB=34310.77 branch Y(0, 3, 23)=0.4444 strategy=frac_sb (6.6s)
+    [frac-sb] refine k=5 confirm wip i=13 W=0.5357 le0 y_min=1715.506
+  BP [8/8000] node 12 depth=4 LB=34310.13 branch wip i=13 W=0.5357 le0 strategy=frac_sb (6.3s)
+    [frac-sb] refine k=5 confirm wip i=16 W=0.5556 le0 y_min=1726.847
+  BP [9/8000] node 11 depth=4 LB=34536.94 branch wip i=16 W=0.5556 le0 strategy=frac_sb (6.0s)
+    [frac-sb] refine k=5 confirm Y(0, 3, 23)=0.5063 y_min=1714.352
+  BP [10/8000] node 8 depth=3 LB=34287.03 branch Y(0, 3, 23)=0.5063 strategy=frac_sb (6.0s)
+    [CGFO node] incumbent=34607.20 (depth=3, budget=20s)
+    [frac-sb] refine k=5 confirm Y(1, 1, 18)=0.4800 y_min=1720.952
+  BP [11/8000] node 7 depth=3 LB=34419.03 branch Y(1, 1, 18)=0.4800 strategy=frac_sb (6.3s)
+  BP stop: gap=0.925% ≤ 1.0% (UB=34607.20, tree_LB=34287.03, nodes=11)
+Freeing default Gurobi environment
