@@ -31,6 +31,7 @@ from model_and_algo.branch_utils import (
     SetupFix,
     WipFix,
     column_compatible,
+    column_rf_compatible,
     filter_columns,
     machine_fixed_y,
     machine_needs_setup_seed,
@@ -53,7 +54,7 @@ from model_and_algo.lrmp_cuts import (
     merge_cut_options,
     cuts_enabled,
 )
-from model_and_algo.cut_SRI import SRICut, coefficient as sri_coefficient, separate_root_triples
+from model_and_algo.cut_SRI import SRICut, coefficient as sri_coefficient, separate_root_odd_sets
 
 IMPROVE_TOLERANCE = DEFAULT_CG_IMPROVE_TOLERANCE
 
@@ -98,11 +99,14 @@ def _solve_pricing_subproblem(
     skip_cross_check: bool = False,
     setup_cost_delta: list[list[float]] | None = None,
     sri_terms: tuple[tuple[int, float], ...] = (),
+    fixed_rf: dict[tuple[int, int], int] | None = None,
 ) -> SubproblemResult:
     """统一定价入口：ebrp | ebrp_heuristic | im_gurobi（规范 §3.3）。"""
     mode = _resolve_pricing_mode(data, pricing_mode, ebrp_force=ebrp_force)
     if sri_terms and mode != "ebrp":
         raise RuntimeError("SRI cuts currently require exact EBRP pricing (pricing_mode='ebrp_force')")
+    if fixed_rf and mode != "ebrp":
+        raise RuntimeError("Ryan–Foster fixes currently require exact EBRP pricing")
     if mode == "im_gurobi":
         return solve_subproblem_im_gurobi(
             data,
@@ -145,6 +149,7 @@ def _solve_pricing_subproblem(
         skip_cross_check=skip_cross_check,
         setup_cost_delta=setup_cost_delta,
         sri_terms=sri_terms,
+        fixed_rf=fixed_rf,
     )
 
 
@@ -332,6 +337,7 @@ class ColumnGenerationSolver:
         fixed_y: dict[SetupFix, int] | None = None,
         fixed_wip: dict[int, WipFix] | None = None,
         fixed_scrap: dict[int, int] | None = None,
+        fixed_rf: dict[tuple[int, int], int] | None = None,
         inherited_columns: dict[str, list[ScheduleColumn]] | None = None,
         inherited_sri_cuts: tuple[tuple[tuple[int, ...], int, int, str], ...] = (),
         lrmp_cuts: dict | str | None = None,
@@ -368,6 +374,7 @@ class ColumnGenerationSolver:
         self.fixed_y: dict[SetupFix, int] = dict(fixed_y or {})
         self.fixed_wip: dict[int, WipFix] = dict(fixed_wip or {})
         self.fixed_scrap: dict[int, int] = dict(fixed_scrap or {})
+        self.fixed_rf: dict[tuple[int, int], int] = dict(fixed_rf or {})
         self.inherited_columns = inherited_columns
         # A Gurobi constraint belongs to one master model only.  Branch nodes
         # therefore pass the mathematical SRI specification, which is rebuilt
@@ -472,6 +479,7 @@ class ColumnGenerationSolver:
             skip_cross_check=self.skip_cross_check,
             setup_cost_delta=self._setup_cost_deltas.get(m_idx),
             sri_terms=self._sri_pricing_terms(m_idx),
+            fixed_rf=self.fixed_rf or None,
         )
 
     def _sri_pricing_terms(self, m_idx: int) -> tuple[tuple[int, float], ...]:
@@ -506,11 +514,12 @@ class ColumnGenerationSolver:
         return tuple(terms)
 
     def _separate_sri_cuts(self) -> int:
-        """Add violated triple SRIs at the root master only.
+        """Add violated odd-cardinality SRIs at the root master only.
 
         Child-node CG solvers do not inherit dynamically separated master rows,
         so this conservative first implementation confines separation to the
         root.  New root columns still receive every stored SRI coefficient.
+        Default cardinalities are the odd ranks 3, 5 and 7.
         """
         if not self.lrmp_cut_opts.get("sri", False):
             return 0
@@ -518,7 +527,7 @@ class ColumnGenerationSolver:
             return 0
         if self._model is None or self._artifacts is None:
             return 0
-        remaining = int(self.lrmp_cut_opts.get("sri_max_cuts", 3)) - len(self.sri_cuts)
+        remaining = int(self.lrmp_cut_opts.get("sri_max_cuts", 8)) - len(self.sri_cuts)
         if remaining <= 0:
             return 0
         q_vars = self._artifacts["Q"]
@@ -526,13 +535,18 @@ class ColumnGenerationSolver:
             machine: [float(qv.X) for qv in q_vars[machine]]
             for machine in self.data.machines
         }
-        candidates = separate_root_triples(
+        cards = self.lrmp_cut_opts.get("sri_cardinalities", (3, 5, 7))
+        if isinstance(cards, str):
+            cards = tuple(int(x) for x in cards.replace(" ", "").split(",") if x)
+        candidates = separate_root_odd_sets(
             self.data,
             self.columns,
             q_values,
             existing_masks={cut.item_mask for cut in self.sri_cuts},
             max_cuts=remaining,
             violation_tol=float(self.lrmp_cut_opts.get("sri_violation_tol", 1e-6)),
+            cardinalities=tuple(cards),
+            cand_max=int(self.lrmp_cut_opts.get("sri_cand_max", 16)),
         )
         for cut in candidates:
             expr = gp.LinExpr()
@@ -545,7 +559,11 @@ class ColumnGenerationSolver:
             self.sri_cuts.append(cut)
         if candidates:
             self._artifacts["sri_cuts"] = self.sri_cuts
-            self._log(f"[SRI] added {len(candidates)} violated root triple cut(s)")
+            by_r: dict[int, int] = {}
+            for cut in candidates:
+                by_r[len(cut.items)] = by_r.get(len(cut.items), 0) + 1
+            detail = ",".join(f"|S|={r}:{n}" for r, n in sorted(by_r.items()))
+            self._log(f"[SRI] added {len(candidates)} violated root cut(s) ({detail})")
         return len(candidates)
 
     def _fold_deadline_duals_into_alpha(self, alpha: list[list[float]]) -> list[list[float]]:
@@ -1081,7 +1099,9 @@ class ColumnGenerationSolver:
     def initialize_columns(self, executor: ProcessPoolExecutor | None = None) -> None:
         data = self.data
         if self.inherited_columns:
-            self.columns = filter_columns(self.inherited_columns, data, self.fixed_y)
+            self.columns = filter_columns(
+                self.inherited_columns, data, self.fixed_y, self.fixed_rf
+            )
             self._rebuild_column_sigs()
             max_id = max(
                 (col.column_id for cols in self.columns.values() for col in cols),
@@ -1143,7 +1163,7 @@ class ColumnGenerationSolver:
                     continue
                 machine = data.machines[m_idx]
                 col = subproblem_to_column(data, m_idx, self._next_col_id, sp)
-                if not column_compatible(col, m_idx, data, self.fixed_y):
+                if not column_compatible(col, m_idx, data, self.fixed_y) or not column_rf_compatible(col, data, self.fixed_rf):
                     continue
                 if self._column_seen(machine, col):
                     continue  # init seed may rediscover; CG loop forbids duplicates
@@ -1159,7 +1179,7 @@ class ColumnGenerationSolver:
         data = self.data
         machine = data.machines[m_idx]
         col = subproblem_to_column(data, m_idx, self._next_col_id, sp)
-        if not column_compatible(col, m_idx, data, self.fixed_y):
+        if not column_compatible(col, m_idx, data, self.fixed_y) or not column_rf_compatible(col, data, self.fixed_rf):
             return False
         if self._column_seen(machine, col):
             return False
@@ -1895,7 +1915,7 @@ class ColumnGenerationSolver:
                 min_rc = min(min_rc, rc)
                 continue
             col = subproblem_to_column(self.data, m_idx, -1, sp)
-            if not column_compatible(col, m_idx, self.data, self.fixed_y):
+            if not column_compatible(col, m_idx, self.data, self.fixed_y) or not column_rf_compatible(col, self.data, self.fixed_rf):
                 continue
             min_rc = min(min_rc, rc)
         return min_rc if math.isfinite(min_rc) else 0.0
@@ -2062,7 +2082,7 @@ class ColumnGenerationSolver:
                     if sp is None:
                         raise RuntimeError(f"missing pricing column for machine {machine} with rc={rc}")
                     col = subproblem_to_column(self.data, m_idx, self._next_col_id, sp)
-                    if column_compatible(col, m_idx, self.data, self.fixed_y):
+                    if column_compatible(col, m_idx, self.data, self.fixed_y) and column_rf_compatible(col, self.data, self.fixed_rf):
                         if self._column_seen(machine, col):
                             # The pricing oracle has returned a structural
                             # duplicate.  Do not blindly ignore it: a truly

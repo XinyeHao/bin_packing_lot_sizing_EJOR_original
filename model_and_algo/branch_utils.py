@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 
 SetupFix = tuple[int, int, int]  # (u_idx, m_idx, t_idx) -> 0|1
 WipFix = tuple[str, int]  # ('le'|'ge', bound) on implied window processing W_i
+# Ryan–Foster pair (i,j) with i<j: 1 = same column, 0 = different columns
+RfFix = int
 
 FRAC_TOL = 1e-4
 Y1_DEFER_PENALTY = 1e-4
@@ -24,8 +26,8 @@ Y1_DEFER_PENALTY = 1e-4
 class BranchDecision:
     """单次分支决策。"""
 
-    kind: str  # setup_y0 | wip | scrap | setup (old_hybrid symmetric)
-    key: SetupFix | int
+    kind: str  # setup_y0 | wip | scrap | setup | ryan_foster
+    key: SetupFix | int | tuple[int, int]
     value: float
     wip_fix: WipFix | None = None  # wip 分支：('le', k) 或 ('ge', k)
 
@@ -67,10 +69,41 @@ def column_compatible(
     return True
 
 
+def column_item_indices(col: ScheduleColumn, data: ProcessedInstance) -> set[int]:
+    items: set[int] = set()
+    for (name, _period), qty in col.x.items():
+        if qty > 0.5:
+            try:
+                items.add(data.cured_index[name])
+            except KeyError:
+                continue
+    return items
+
+
+def column_rf_compatible(
+    col: ScheduleColumn,
+    data: ProcessedInstance,
+    fixed_rf: dict[tuple[int, int], int] | None,
+) -> bool:
+    """Ryan–Foster: same ⇒ 0 or 2 of {i,j}; differ ⇒ not both."""
+    if not fixed_rf:
+        return True
+    items = column_item_indices(col, data)
+    for (i, j), val in fixed_rf.items():
+        has_i = i in items
+        has_j = j in items
+        if val == 0 and has_i and has_j:
+            return False
+        if val == 1 and has_i != has_j:
+            return False
+    return True
+
+
 def filter_columns(
     columns: dict[str, list[ScheduleColumn]],
     data: ProcessedInstance,
     fixed_y: dict[SetupFix, int],
+    fixed_rf: dict[tuple[int, int], int] | None = None,
 ) -> dict[str, list[ScheduleColumn]]:
     filtered: dict[str, list[ScheduleColumn]] = {}
     for m_idx, machine in enumerate(data.machines):
@@ -78,8 +111,53 @@ def filter_columns(
             col
             for col in columns.get(machine, [])
             if column_compatible(col, m_idx, data, fixed_y)
+            and column_rf_compatible(col, data, fixed_rf)
         ]
     return filtered
+
+
+def pick_ryan_foster_branch(
+    data: ProcessedInstance,
+    cg: "ColumnGenerationSolver",
+    fixed_rf: dict[tuple[int, int], int] | None = None,
+) -> BranchDecision | None:
+    """Pick the most fractional co-occurring item pair (Ryan–Foster)."""
+    if cg._artifacts is None:
+        return None
+    fixes = fixed_rf or {}
+    pair_score: dict[tuple[int, int], float] = {}
+    try:
+        q_vars = cg._artifacts["Q"]
+    except Exception:
+        return None
+    for machine in data.machines:
+        cols = cg.columns.get(machine, [])
+        q_list = q_vars.get(machine, [])
+        for col, qv in zip(cols, q_list):
+            try:
+                q = float(qv.X)
+            except Exception:
+                continue
+            if q <= FRAC_TOL:
+                continue
+            items = sorted(column_item_indices(col, data))
+            for a_idx in range(len(items)):
+                for b_idx in range(a_idx + 1, len(items)):
+                    pair = (items[a_idx], items[b_idx])
+                    if pair in fixes:
+                        continue
+                    pair_score[pair] = pair_score.get(pair, 0.0) + q
+    best: BranchDecision | None = None
+    best_frac = 0.0
+    for pair, cooccur in pair_score.items():
+        # Closeness to 1/2: most fractional same/differ decision.
+        frac = min(cooccur, max(0.0, 1.0 - cooccur))
+        if frac <= FRAC_TOL:
+            continue
+        if frac > best_frac + 1e-12:
+            best_frac = frac
+            best = BranchDecision(kind="ryan_foster", key=pair, value=float(cooccur))
+    return best
 
 
 def copy_column_pool(columns: dict[str, list[ScheduleColumn]]) -> dict[str, list[ScheduleColumn]]:
@@ -454,6 +532,28 @@ class BranchPolicy:
                     return dec
             except Exception as exc:
                 print(f"    [frac-sb] fallback to heuristic ({exc})", flush=True)
+            return self._pick_heuristic(
+                depth, cg, fixed_y, fixed_scrap, fixed_wip
+            )
+
+        if self.strategy == "ryan_foster":
+            try:
+                if hasattr(cg, "ensure_master_lp"):
+                    cg.ensure_master_lp()
+                fixed_rf = getattr(cg, "fixed_rf", {}) or {}
+                dec = pick_ryan_foster_branch(self.data, cg, fixed_rf)
+                if dec is not None:
+                    return dec
+                from model_and_algo.ml_branch_selector import pick_frac_decision
+
+                # No fractional pair left: fall back to setup/WIP/scrap.
+                dec = pick_frac_decision(
+                    self.data, cg, fixed_y, fixed_scrap, fixed_wip
+                )
+                if dec is not None:
+                    return dec
+            except Exception as exc:
+                print(f"    [ryan-foster] fallback to heuristic ({exc})", flush=True)
             return self._pick_heuristic(
                 depth, cg, fixed_y, fixed_scrap, fixed_wip
             )

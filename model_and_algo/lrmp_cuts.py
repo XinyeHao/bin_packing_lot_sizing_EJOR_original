@@ -13,11 +13,13 @@ if TYPE_CHECKING:
 
 FRAC_TOL = 1e-4
 
-DEFAULT_LRMP_CUTS: dict[str, bool | int | float] = {
+DEFAULT_LRMP_CUTS: dict[str, bool | int | float | tuple] = {
     "deadline_cover": True,
     "sri": False,
-    "sri_max_cuts": 3,
+    "sri_max_cuts": 8,
     "sri_violation_tol": 1e-6,
+    "sri_cardinalities": (3, 5, 7),
+    "sri_cand_max": 16,
     "same_mt_setup": False,
     "wip_process_lb": False,
     "tight_deadline": True,
@@ -28,11 +30,13 @@ DEFAULT_LRMP_CUTS: dict[str, bool | int | float] = {
 }
 
 # 与 DEFAULT 相同：只启用 Deadline Cover（tight RHS）
-LRMP_CUTS_STANDARD: dict[str, bool | int | float] = {
+LRMP_CUTS_STANDARD: dict[str, bool | int | float | tuple] = {
     "deadline_cover": True,
     "sri": False,
-    "sri_max_cuts": 3,
+    "sri_max_cuts": 8,
     "sri_violation_tol": 1e-6,
+    "sri_cardinalities": (3, 5, 7),
+    "sri_cand_max": 16,
     "same_mt_setup": False,
     "wip_process_lb": False,
     "tight_deadline": True,
@@ -42,11 +46,13 @@ LRMP_CUTS_STANDARD: dict[str, bool | int | float] = {
     "setup_pair_viol_tol": 1e-4,
 }
 
-LRMP_CUTS_STRONG: dict[str, bool | int | float] = {
+LRMP_CUTS_STRONG: dict[str, bool | int | float | tuple] = {
     "deadline_cover": True,
     "sri": False,
-    "sri_max_cuts": 3,
+    "sri_max_cuts": 8,
     "sri_violation_tol": 1e-6,
+    "sri_cardinalities": (3, 5, 7),
+    "sri_cand_max": 16,
     "same_mt_setup": False,
     "wip_process_lb": False,
     "tight_deadline": True,
@@ -65,6 +71,8 @@ def merge_cut_options(opts: dict | str | None) -> dict:
             "sri": False,
             "sri_max_cuts": 0,
             "sri_violation_tol": 1e-6,
+            "sri_cardinalities": (3, 5, 7),
+            "sri_cand_max": 16,
             "same_mt_setup": False,
             "wip_process_lb": False,
             "tight_deadline": False,

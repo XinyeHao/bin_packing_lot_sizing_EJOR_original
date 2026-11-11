@@ -385,11 +385,14 @@ def _solve_routing(
     start_mask: int = 0,
     forced_at: dict[int, int] | None = None,
     sri_terms: tuple[tuple[int, float], ...] = (),
+    rf_differ: tuple[tuple[int, int], ...] = (),
+    rf_same: tuple[tuple[int, int], ...] = (),
 ) -> tuple[float, dict[tuple[int, int], _MemoEntry]]:
     """记忆化 DP 路由（递归，精确）。
 
     状态：(t, used_mask)，t 为当前时刻，used_mask 为已用物料位掩码。
     forced_at: 若给出 {t: u}，则时刻 t 必须开工配置 u（Y=1 分支），不可空闲跳过。
+    rf_differ / rf_same: Ryan–Foster bit-pairs (bit_i, bit_j).
     """
     # 预排序：每时刻的批按 delta 升序（最负优先），尽早收紧 best 便于递归分支剪枝
     for t in range(num_t):
@@ -424,6 +427,8 @@ def _solve_routing(
     _deadline = deadline
     _forced_at = forced_at or {}
     _sri_terms = sri_terms
+    _rf_differ = rf_differ
+    _rf_same = rf_same
 
     def _sri_transition_cost(used_mask: int, batch_mask: int) -> float:
         """Reduced-cost contribution of rank-1 SRI duals for one new batch."""
@@ -432,6 +437,19 @@ def _solve_routing(
             -pi * (((next_mask & item_mask).bit_count() // 2) - ((used_mask & item_mask).bit_count() // 2))
             for item_mask, pi in _sri_terms
         )
+
+    def _rf_allows(used_mask: int, batch_mask: int = 0) -> bool:
+        new_mask = used_mask | batch_mask
+        for bi, bj in _rf_differ:
+            if (new_mask & bi) and (new_mask & bj):
+                return False
+        if batch_mask == 0:
+            for bi, bj in _rf_same:
+                has_i = bool(new_mask & bi)
+                has_j = bool(new_mask & bj)
+                if has_i != has_j:
+                    return False
+        return True
 
     # 预计算乐观下界：lb_sum[t] = sum_{t'>=t} min(0, min_delta_at_t')
     # 忽略物料冲突，是真实未来成本的下界（更负 = 更乐观）
@@ -487,7 +505,7 @@ def _solve_routing(
         if _node_counter[0] & 63 == 0 and timed_out():
             return math.inf
         if t_idx >= _num_t:
-            return 0.0
+            return 0.0 if _rf_allows(used_mask) else math.inf
 
         key = _pack(t_idx, used_mask)
         cached = memo.get(key)
@@ -508,6 +526,8 @@ def _solve_routing(
                 if b.u_idx != u_req:
                     continue
                 if b.item_mask & used_mask:
+                    continue
+                if not _rf_allows(used_mask, b.item_mask):
                     continue
                 et = t_idx + b.span
                 if et > _num_t:
@@ -531,6 +551,8 @@ def _solve_routing(
 
         for b in _batches_by_t[t_idx]:
             if b.item_mask & used_mask:
+                continue
+            if not _rf_allows(used_mask, b.item_mask):
                 continue
             et = t_idx + b.span
             if et > _num_t:
@@ -630,6 +652,7 @@ def solve_subproblem_ebrp(
     skip_cross_check: bool = False,
     setup_cost_delta: list[list[float]] | None = None,
     sri_terms: tuple[tuple[int, float], ...] = (),
+    fixed_rf: dict[tuple[int, int], int] | None = None,
 ) -> SubproblemResult:
     num_t = len(data.periods)
     num_i = len(data.cured_items)
@@ -704,6 +727,16 @@ def solve_subproblem_ebrp(
             file=sys.stderr,
         )
 
+    rf_differ: list[tuple[int, int]] = []
+    rf_same: list[tuple[int, int]] = []
+    if fixed_rf:
+        for (i, j), val in fixed_rf.items():
+            pair = (1 << i, 1 << j)
+            if val == 0:
+                rf_differ.append(pair)
+            elif val == 1:
+                rf_same.append(pair)
+
     batch_cost, memo = _solve_routing(
         batches_by_t,
         num_t,
@@ -713,6 +746,8 @@ def solve_subproblem_ebrp(
         machine=machine,
         forced_at=forced_at or None,
         sri_terms=sri_terms,
+        rf_differ=tuple(rf_differ),
+        rf_same=tuple(rf_same),
     )
     if st.timed_out and not math.isfinite(batch_cost):
         batch_cost = math.inf

@@ -57,6 +57,8 @@ class BranchNode:
     fixed_y: dict[SetupFix, int] = field(default_factory=dict)
     fixed_scrap: dict[int, int] = field(default_factory=dict)
     fixed_wip: dict[int, WipFix] = field(default_factory=dict)
+    # Ryan–Foster: pair (i,j) -> 1 same column / 0 different columns
+    fixed_rf: dict[tuple[int, int], int] = field(default_factory=dict)
     inherited_columns: dict[str, list[ScheduleColumn]] | None = None
     # Mathematical SRI specifications inherited from the parent.  The child
     # creates its own Gurobi constraints from these specs.
@@ -69,7 +71,7 @@ class BranchNode:
     sibling_group_id: int | None = None  # parent.node_id; used to co-locate sibling frontier
     depth: int = 0
     branch_kind: str | None = None
-    branch_on: SetupFix | int | None = None
+    branch_on: SetupFix | int | tuple[int, int] | None = None
     branch_value: int | None = None
     cg_fail_retries: int = 0
     cg_budget_override: float | None = None
@@ -203,7 +205,7 @@ class BranchAndPriceSolver:
         self.ml_sb_refine_k = ML_SB_REFINE_K
         self.ml_sb_child_tlim = ML_SB_CHILD_TLIM
         self.ml_sb_min_remaining = ML_SB_MIN_REMAINING
-        if branch_strategy == "frac_sb":
+        if branch_strategy in ("frac_sb", "ryan_foster"):
             self.ml_sb_refine_k = FRAC_SB_REFINE_K
         self.policy = BranchPolicy(
             data,
@@ -275,6 +277,7 @@ class BranchAndPriceSolver:
             fixed_y=node.fixed_y,
             fixed_scrap=node.fixed_scrap,
             fixed_wip=node.fixed_wip,
+            fixed_rf=node.fixed_rf,
             inherited_columns=inherited,
             inherited_sri_cuts=node.inherited_sri_cuts,
             use_gurobi_init=use_gurobi_init,
@@ -292,6 +295,7 @@ class BranchAndPriceSolver:
         inherited: dict[str, list[ScheduleColumn]],
         tlim: float,
         incumbent: float | None,
+        fixed_rf: dict[tuple[int, int], int] | None = None,
     ) -> float | None:
         """Short CG probe for strong-branch refine (no Gurobi init)."""
         if tlim < 1.0:
@@ -309,6 +313,7 @@ class BranchAndPriceSolver:
                 fixed_y=fixed_y,
                 fixed_scrap=fixed_scrap,
                 fixed_wip=fixed_wip,
+                fixed_rf=fixed_rf or {},
                 inherited_columns=inherited,
                 use_gurobi_init=False,
                 **kwargs,
@@ -607,6 +612,8 @@ class BranchAndPriceSolver:
             return f"wip i={dec.key} W={dec.value:.4f} {sense}{bound}"
         if dec.kind in ("setup_y0", "setup"):
             return f"Y{dec.key}={dec.value:.4f}"
+        if dec.kind == "ryan_foster":
+            return f"RF{dec.key} cooccur={dec.value:.4f}"
         return str(dec)
 
     def _create_children(
@@ -636,7 +643,7 @@ class BranchAndPriceSolver:
             branch_key = dec.key
             assert isinstance(branch_key, tuple)
 
-            if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb"):
+            if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb", "ryan_foster"):
                 assert open_heap is not None
                 for val in (1, 0):
                     child_fixed = dict(node.fixed_y)
@@ -649,6 +656,7 @@ class BranchAndPriceSolver:
                         fixed_y=child_fixed,
                         fixed_scrap=dict(node.fixed_scrap),
                         fixed_wip=dict(node.fixed_wip),
+                        fixed_rf=dict(node.fixed_rf),
                         inherited_columns=inherited,
                         depth=node.depth + 1,
                         branch_kind="setup",
@@ -671,6 +679,7 @@ class BranchAndPriceSolver:
                         fixed_y=child_fixed,
                         fixed_scrap=dict(node.fixed_scrap),
                         fixed_wip=dict(node.fixed_wip),
+                        fixed_rf=dict(node.fixed_rf),
                         inherited_columns=inherited,
                         depth=node.depth + 1,
                         branch_kind="setup_y0",
@@ -688,6 +697,7 @@ class BranchAndPriceSolver:
                     fixed_y=child_fixed_y1,
                     fixed_scrap=dict(node.fixed_scrap),
                     fixed_wip=dict(node.fixed_wip),
+                    fixed_rf=dict(node.fixed_rf),
                     inherited_columns=inherited,
                     depth=node.depth + 1,
                     branch_kind="setup_y1_lazy",
@@ -710,6 +720,7 @@ class BranchAndPriceSolver:
                     fixed_y=dict(node.fixed_y),
                     fixed_scrap=child_scrap,
                     fixed_wip=dict(node.fixed_wip),
+                    fixed_rf=dict(node.fixed_rf),
                     inherited_columns=inherited,
                     depth=node.depth + 1,
                     branch_kind="scrap",
@@ -717,7 +728,7 @@ class BranchAndPriceSolver:
                     branch_value=1,
                 ), 0)
                 next_id += 1
-                if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb") and open_heap is not None:
+                if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb", "ryan_foster") and open_heap is not None:
                     self._push_heap(open_heap, child, parent_lb, defer=False)
                 else:
                     self._push_lazy(lazy_heap, child, parent_lb)
@@ -731,6 +742,7 @@ class BranchAndPriceSolver:
                     fixed_y=dict(node.fixed_y),
                     fixed_scrap=child_scrap0,
                     fixed_wip=dict(node.fixed_wip),
+                    fixed_rf=dict(node.fixed_rf),
                     inherited_columns=inherited,
                     refresh_columns=False,
                     depth=node.depth + 1,
@@ -741,7 +753,7 @@ class BranchAndPriceSolver:
                 ), 1)
                 next_id += 1
                 stats["y1_lazy_created"] += 1
-                if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb") and open_heap is not None:
+                if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb", "ryan_foster") and open_heap is not None:
                     self._push_heap(open_heap, child0, parent_lb, defer=True)
                 else:
                     self._push_lazy(lazy_heap, child0, parent_lb)
@@ -760,13 +772,14 @@ class BranchAndPriceSolver:
                     fixed_y=dict(node.fixed_y),
                     fixed_scrap=dict(node.fixed_scrap),
                     fixed_wip=child_wip,
+                    fixed_rf=dict(node.fixed_rf),
                     inherited_columns=inherited,
                     depth=node.depth + 1,
                     branch_kind="wip",
                     branch_on=i_idx,
                     branch_value=bound,
                 ), 0)
-                if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb") and open_heap is not None:
+                if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb", "ryan_foster") and open_heap is not None:
                     self._push_heap(open_heap, wip_child, parent_lb, defer=False)
                 else:
                     dfs_stack.append(wip_child)
@@ -782,6 +795,7 @@ class BranchAndPriceSolver:
                         fixed_y=dict(node.fixed_y),
                         fixed_scrap=dict(node.fixed_scrap),
                         fixed_wip=child_wip_ge,
+                        fixed_rf=dict(node.fixed_rf),
                         inherited_columns=inherited,
                         depth=node.depth + 1,
                         branch_kind="wip_ge_lazy",
@@ -791,10 +805,40 @@ class BranchAndPriceSolver:
                     ), 1)
                     next_id += 1
                     stats["y1_lazy_created"] += 1
-                    if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb") and open_heap is not None:
+                    if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb", "ryan_foster") and open_heap is not None:
                         self._push_heap(open_heap, child_ge, parent_lb, defer=True)
                     else:
                         self._push_lazy(lazy_heap, child_ge, parent_lb)
+            return next_id, n_created
+
+        if dec.kind == "ryan_foster":
+            pair = dec.key
+            assert isinstance(pair, tuple) and len(pair) == 2
+            i_idx, j_idx = int(pair[0]), int(pair[1])
+            if i_idx > j_idx:
+                i_idx, j_idx = j_idx, i_idx
+            pair_key = (i_idx, j_idx)
+            # Prefer the "differ" child first (often easier); both go to open heap.
+            for val, side in ((0, 0), (1, 1)):
+                child_rf = dict(node.fixed_rf)
+                child_rf[pair_key] = val
+                child = _tag(BranchNode(
+                    node_id=next_id,
+                    fixed_y=dict(node.fixed_y),
+                    fixed_scrap=dict(node.fixed_scrap),
+                    fixed_wip=dict(node.fixed_wip),
+                    fixed_rf=child_rf,
+                    inherited_columns=inherited,
+                    depth=node.depth + 1,
+                    branch_kind="ryan_foster",
+                    branch_on=pair_key,
+                    branch_value=val,
+                ), side)
+                next_id += 1
+                if open_heap is not None:
+                    self._push_heap(open_heap, child, parent_lb, defer=False)
+                else:
+                    dfs_stack.append(child)
             return next_id, n_created
 
         return next_id, n_created
@@ -806,7 +850,7 @@ class BranchAndPriceSolver:
         open_heap: list[tuple[float, int, BranchNode]] | None,
         stats: dict[str, int],
     ) -> BranchNode | None:
-        if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb"):
+        if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb", "ryan_foster"):
             assert open_heap is not None
             if not open_heap:
                 return None
@@ -828,7 +872,7 @@ class BranchAndPriceSolver:
         lazy_heap: list,
         open_heap: list | None,
     ) -> bool:
-        if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb"):
+        if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb", "ryan_foster"):
             return bool(open_heap)
         return bool(dfs_stack or lazy_heap)
 
@@ -840,7 +884,7 @@ class BranchAndPriceSolver:
         dfs_stack: list[BranchNode] = [root]
         lazy_heap: list[tuple[float, int, BranchNode]] = []
         open_heap: list[tuple[float, int, BranchNode]] | None = None
-        if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb"):
+        if self.branch_strategy in ("old_hybrid", "best_bound", "ml", "frac_sb", "ryan_foster"):
             open_heap = []
             heapq.heappush(open_heap, (root.lb_estimate, root.node_id, root))
             dfs_stack = []

@@ -247,6 +247,7 @@ BP_STRATEGIES = (
     "best_bound",
     "ml",
     "frac_sb",  # frac Top-K pool → short strong-branch refine (no ML)
+    "ryan_foster",  # Ryan–Foster same/differ pairs; fallback to frac_sb
     "baseline_y0_dfs",
     "old_hybrid",
 )
