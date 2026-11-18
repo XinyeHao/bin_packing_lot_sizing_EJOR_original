@@ -258,6 +258,7 @@ def _price_machine_in_worker(
         skip_cross_check=state.get("skip_cross_check", False),
         setup_cost_delta=setup_deltas.get(m_idx),
         sri_terms=(state.get("sri_terms_by_machine") or {}).get(m_idx, ()),
+        fixed_rf=state.get("fixed_rf"),
     )
     if rc_arr is not None:
         rc_arr[m_idx] = sp.reduced_cost
@@ -311,6 +312,7 @@ def _execute_pricing_job(
         skip_cross_check=state.get("skip_cross_check", False),
         setup_cost_delta=(state.get("setup_cost_deltas") or {}).get(m_idx),
         sri_terms=(state.get("sri_terms_by_machine") or {}).get(m_idx, ()),
+        fixed_rf=state.get("fixed_rf"),
     )
     rc_arr = state.get("rc_arr")
     if rc_arr is not None:
@@ -871,6 +873,7 @@ class ColumnGenerationSolver:
         _PRICING_WORKER_STATE = {
             "data": self.data,
             "fixed_y": self.fixed_y,
+            "fixed_rf": dict(self.fixed_rf),
             "pricing_time_limit": self.pricing_time_limit,
             "pricing_mode": self.pricing_mode,
             "ebrp_force": self.ebrp_force,
@@ -955,7 +958,7 @@ class ColumnGenerationSolver:
     ) -> list[tuple[int, SubproblemResult]]:
         # SRI duals are path-dependent.  Keep this first implementation
         # in-process so worker pricing can never omit the SRI contribution.
-        if self.sri_cuts or self.pricing_inprocess or executor is None:
+        if self.fixed_rf or self.sri_cuts or self.pricing_inprocess or executor is None:
             return self._price_machines_inprocess(
                 alpha,
                 rho,

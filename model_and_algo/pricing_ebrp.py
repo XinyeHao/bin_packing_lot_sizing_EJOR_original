@@ -731,7 +731,14 @@ def solve_subproblem_ebrp(
     rf_same: list[tuple[int, int]] = []
     if fixed_rf:
         for (i, j), val in fixed_rf.items():
-            pair = (1 << i, 1 << j)
+            # Batch masks use machine-local indices. A missing item has
+            # bit zero; a same-pair then forbids its present partner.
+            local_i = ctx.global_to_local.get(i)
+            local_j = ctx.global_to_local.get(j)
+            pair = (
+                0 if local_i is None else 1 << local_i,
+                0 if local_j is None else 1 << local_j,
+            )
             if val == 0:
                 rf_differ.append(pair)
             elif val == 1:

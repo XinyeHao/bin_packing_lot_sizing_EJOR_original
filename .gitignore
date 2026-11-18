@@ -46,3 +46,7 @@ Thumbs.db
 supplement_materials/_bpc_ml_large_*.json
 
 
+
+# Corrected small-instance diagnostic results
+!result/rf_corrected_diagnostic/
+!result/rf_corrected_diagnostic/*.json
