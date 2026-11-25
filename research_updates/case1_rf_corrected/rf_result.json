@@ -1,0 +1,231 @@
+{
+  "branch_strategy": "ryan_foster",
+  "status": "gap_limit",
+  "ub": 32300.699999999997,
+  "lb": 32003.17253521126,
+  "runtime_sec": 388.89555700000346,
+  "nodes": 15,
+  "nodes_cg_failed": 0,
+  "root_cg_stop": null,
+  "bound_history": [
+    {
+      "elapsed_sec": 50.07684109999536,
+      "ub": 32454.5,
+      "lb": null,
+      "lb_certified": false
+    },
+    {
+      "elapsed_sec": 50.07735319999483,
+      "ub": 32454.5,
+      "lb": 31640.691565452107,
+      "lb_certified": true
+    },
+    {
+      "elapsed_sec": 94.65445059999911,
+      "ub": 32300.699999999997,
+      "lb": 31640.691565452107,
+      "lb_certified": true
+    },
+    {
+      "elapsed_sec": 94.65582079999876,
+      "ub": 32300.699999999997,
+      "lb": 31702.61298701297,
+      "lb_certified": true
+    },
+    {
+      "elapsed_sec": 129.43658959999448,
+      "ub": 32300.699999999997,
+      "lb": 31854.432338308463,
+      "lb_certified": true
+    },
+    {
+      "elapsed_sec": 201.56601479999517,
+      "ub": 32300.699999999997,
+      "lb": 31879.780266386246,
+      "lb_certified": true
+    },
+    {
+      "elapsed_sec": 248.69751609999366,
+      "ub": 32300.699999999997,
+      "lb": 31931.878867924515,
+      "lb_certified": true
+    },
+    {
+      "elapsed_sec": 311.35736399999587,
+      "ub": 32300.699999999997,
+      "lb": 31955.457330992063,
+      "lb_certified": true
+    },
+    {
+      "elapsed_sec": 348.97955509999883,
+      "ub": 32300.699999999997,
+      "lb": 31971.461616161596,
+      "lb_certified": true
+    },
+    {
+      "elapsed_sec": 388.8982212999981,
+      "ub": 32300.699999999997,
+      "lb": 32003.17253521126,
+      "lb_certified": true
+    }
+  ],
+  "batches": [
+    {
+      "machine": "m0",
+      "config": "u1",
+      "start": 14,
+      "end": 23,
+      "items": [
+        "i44",
+        "i46",
+        "i51"
+      ]
+    },
+    {
+      "machine": "m0",
+      "config": "u3",
+      "start": 6,
+      "end": 13,
+      "items": [
+        "i4",
+        "i48"
+      ]
+    },
+    {
+      "machine": "m0",
+      "config": "u4",
+      "start": 23,
+      "end": 35,
+      "items": [
+        "i3",
+        "i49",
+        "i5"
+      ]
+    },
+    {
+      "machine": "m1",
+      "config": "u0",
+      "start": 17,
+      "end": 23,
+      "items": [
+        "i11",
+        "i24",
+        "i37",
+        "i47"
+      ]
+    },
+    {
+      "machine": "m1",
+      "config": "u1",
+      "start": 8,
+      "end": 17,
+      "items": [
+        "i12",
+        "i20",
+        "i31",
+        "i7"
+      ]
+    },
+    {
+      "machine": "m1",
+      "config": "u2",
+      "start": 23,
+      "end": 35,
+      "items": [
+        "i18",
+        "i27",
+        "i28",
+        "i38",
+        "i41"
+      ]
+    },
+    {
+      "machine": "m2",
+      "config": "u0",
+      "start": 10,
+      "end": 15,
+      "items": [
+        "i14",
+        "i26",
+        "i36",
+        "i45"
+      ]
+    },
+    {
+      "machine": "m2",
+      "config": "u3",
+      "start": 15,
+      "end": 25,
+      "items": [
+        "i17",
+        "i22",
+        "i50",
+        "i6"
+      ]
+    },
+    {
+      "machine": "m3",
+      "config": "u0",
+      "start": 14,
+      "end": 19,
+      "items": [
+        "i15",
+        "i25",
+        "i39"
+      ]
+    },
+    {
+      "machine": "m3",
+      "config": "u4",
+      "start": 19,
+      "end": 32,
+      "items": [
+        "i0",
+        "i1",
+        "i29",
+        "i43"
+      ]
+    },
+    {
+      "machine": "m4",
+      "config": "u1",
+      "start": 17,
+      "end": 25,
+      "items": [
+        "i16",
+        "i21",
+        "i40"
+      ]
+    },
+    {
+      "machine": "m4",
+      "config": "u2",
+      "start": 9,
+      "end": 17,
+      "items": [
+        "i23",
+        "i33",
+        "i52",
+        "i8"
+      ]
+    },
+    {
+      "machine": "m4",
+      "config": "u3",
+      "start": 25,
+      "end": 35,
+      "items": [
+        "i19",
+        "i35",
+        "i9"
+      ]
+    }
+  ],
+  "pricing_limit": 60.0,
+  "time_limit": 3600.0,
+  "gurobi_version": [
+    13,
+    0,
+    2
+  ]
+}

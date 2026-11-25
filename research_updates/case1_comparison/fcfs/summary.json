@@ -1,0 +1,18 @@
+{
+  "method": "FCFS",
+  "instance": "case1",
+  "costs": {
+    "holding": 388.0999999999999,
+    "backorder": 6774.0,
+    "configuration_setup": 18779.5,
+    "scrap": 26187.1,
+    "total": 52128.7
+  },
+  "schedule_runtime_sec": 0.0003068000005441718,
+  "batch_count": 16,
+  "on_time": 13,
+  "late": 21,
+  "scrapped": 19,
+  "total_delay_item_hours": 256,
+  "rule": "release-time FCFS; original item order breaks ties; machine ID order; immediate compatible batching; final unprocessed items scrapped"
+}

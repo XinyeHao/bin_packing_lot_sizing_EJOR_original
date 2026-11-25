@@ -1,0 +1,31 @@
+{
+  "case_id": "case1",
+  "type": "synthetic industrial-style planning instance",
+  "seed": 40101,
+  "generator_profile": "small_cg benchmark generation; T=36, I=53, U=5, M=5",
+  "period_unit": "hour",
+  "planning_horizon_hours": 36,
+  "items": 53,
+  "machines": 5,
+  "configurations": 5,
+  "total_unit_demands": 53,
+  "machine_capacities": {
+    "m0": 4.7,
+    "m1": 6.4,
+    "m2": 6.1,
+    "m3": 6.4,
+    "m4": 4.6
+  },
+  "configuration_processing_hours": {
+    "u0": 5,
+    "u1": 8,
+    "u2": 8,
+    "u3": 7,
+    "u4": 10
+  },
+  "notes": [
+    "Each item is a unit WIP order assigned to one curing configuration.",
+    "Each item has an eligible-machine set, tray length, release time, latest start, and period demand.",
+    "This is a generated illustrative instance, not factory observations."
+  ]
+}

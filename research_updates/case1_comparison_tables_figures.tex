@@ -1,0 +1,53 @@
+% Requires booktabs and graphicx
+% Requires \usepackage{booktabs}
+\begin{table}[htbp]
+\centering\small
+\caption{Solution results for the case instance}
+\label{tab:case-methods}
+\begin{tabular}{lrrrr}
+\toprule
+Method & UB & LB & Gap (\%) & Time (s) \\
+\midrule
+RF-BP & 32300.70 & 32003.17 & 0.9211 & 388.8956 \\
+Gurobi & 32300.70 & 30453.90 & 5.7175 & 3601.9795 \\
+FCFS & 52128.70 & -- & -- & 0.0003 \\
+\bottomrule
+\end{tabular}
+\end{table}
+% Requires \usepackage{booktabs}
+\begin{table}[htbp]
+\centering\small
+\caption{Delivery outcomes for the case instance}
+\label{tab:case-method-delivery}
+\begin{tabular}{lrrrrrr}
+\toprule
+Method & Delivered & On time & Late & End backlog & Scrapped & Delay (item-hours) \\
+\midrule
+RF-BP & 46 & 20 & 26 & 0 & 7 & 219 \\
+Gurobi & 46 & 20 & 26 & 0 & 7 & 219 \\
+FCFS & 34 & 13 & 21 & 0 & 19 & 256 \\
+\bottomrule
+\end{tabular}
+\par\smallskip{\footnotesize End backlog excludes scrapped demand. Delay is summed over delivered items.\par}
+\end{table}
+% Requires \usepackage{booktabs}
+\begin{table}[htbp]
+\centering\small
+\caption{Cost components for the case instance}
+\label{tab:case-method-cost}
+\begin{tabular}{lrrrrr}
+\toprule
+Method & Holding & Backorder & Setup & Scrap & Total \\
+\midrule
+RF-BP & 437.60 & 6351.00 & 15509.20 & 10002.90 & 32300.70 \\
+Gurobi & 437.60 & 6351.00 & 15509.20 & 10002.90 & 32300.70 \\
+FCFS & 388.10 & 6774.00 & 18779.50 & 26187.10 & 52128.70 \\
+\bottomrule
+\end{tabular}
+\end{table}
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.9\linewidth]{case1_comparison/inventory_comparison.pdf}
+\caption{Finished inventory, model backlog, and net inventory under RF--BP, Gurobi, and FCFS. RF--BP and Gurobi trajectories coincide.}
+\label{fig:case-three-methods}
+\end{figure}

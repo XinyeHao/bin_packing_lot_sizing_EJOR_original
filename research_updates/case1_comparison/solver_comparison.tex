@@ -1,0 +1,15 @@
+% Requires \usepackage{booktabs}
+\begin{table}[htbp]
+\centering\small
+\caption{Solution results for the case instance}
+\label{tab:case-methods}
+\begin{tabular}{llrrrr}
+\toprule
+Method & Status & Cost & LB & Gap (\%) & Time (s) \\
+\midrule
+RF-BP & gap\_limit & 32300.70 & 32003.17 & 0.9211 & 388.8956 \\
+Gurobi & time\_limit & 32300.70 & 30453.90 & 5.7175 & 3601.9795 \\
+FCFS & heuristic & 52128.70 & -- & -- & 0.0003 \\
+\bottomrule
+\end{tabular}
+\end{table}

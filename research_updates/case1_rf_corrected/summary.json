@@ -1,0 +1,13 @@
+{
+  "status": "gap_limit",
+  "ub": 32300.699999999997,
+  "lb": 32003.17253521126,
+  "gap_pct": 0.9211176995815514,
+  "runtime_sec": 388.89555700000346,
+  "nodes": 15,
+  "on_time": 20,
+  "late": 26,
+  "undelivered": 7,
+  "total_delay_hours": 219,
+  "max_delay_hours": 21
+}

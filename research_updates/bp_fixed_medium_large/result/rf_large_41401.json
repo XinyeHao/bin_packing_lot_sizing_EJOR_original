@@ -1,0 +1,14 @@
+{
+  "scale": "large",
+  "seed": 41401,
+  "branch_strategy": "ryan_foster",
+  "cuts": "none",
+  "status": "gap_limit",
+  "ub": 35169.5,
+  "lb": 34825.555608591865,
+  "gap_pct": 0.978,
+  "runtime_sec": 2806.784,
+  "nodes": 67,
+  "nodes_cg_failed": 0,
+  "root_converged": true
+}
