@@ -11,9 +11,13 @@ from __future__ import annotations
 
 import math
 import sys
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Literal
+
+import numpy as np
+from numba import njit
 
 from common.data_models import ProcessedInstance
 from configuration import CHECKER_TOL, DEFAULT_PROGRESS_INTERVAL_SEC
@@ -21,6 +25,23 @@ from model_and_algo.subproblem_common import SubproblemResult, scale_lengths
 from model_and_algo.im_model import _item_start_feasible
 
 ActionKind = Literal["end", "idle", "batch"]
+
+_EBRP_TIME_LOCK = threading.Lock()
+EBRP_TIME = {"catalog": 0.0, "route": 0.0, "calls": 0}
+
+
+def reset_ebrp_time() -> None:
+    with _EBRP_TIME_LOCK:
+        EBRP_TIME["catalog"] = 0.0
+        EBRP_TIME["route"] = 0.0
+        EBRP_TIME["calls"] = 0
+
+
+def _add_ebrp_time(catalog_sec: float, route_sec: float) -> None:
+    with _EBRP_TIME_LOCK:
+        EBRP_TIME["catalog"] += catalog_sec
+        EBRP_TIME["route"] += route_sec
+        EBRP_TIME["calls"] += 1
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -159,6 +180,10 @@ class EBRPContext:
     pool_specs: list[_PoolSpec] = field(default_factory=list)
     event_times: list[int] = field(default_factory=list)
     _subset_cache: list[list[tuple[frozenset[int], int]]] = field(default_factory=list)
+    _subset_items: list[np.ndarray] = field(default_factory=list)
+    _subset_ptr: list[np.ndarray] = field(default_factory=list)
+    _subset_mask: list[np.ndarray] = field(default_factory=list)
+    _subset_n: list[np.ndarray] = field(default_factory=list)
     _float_capacity: float = 0.0
     _item_volumes: list[float] = field(default_factory=list)
     _lt_at_t: dict[tuple[int, int], int] = field(default_factory=dict)
@@ -239,8 +264,281 @@ class EBRPContext:
             lt_at_t,
             g2l,
         )
+        ctx._subset_items = []
+        ctx._subset_ptr = []
+        ctx._subset_mask = []
+        ctx._subset_n = []
+        for subsets in ctx._subset_cache:
+            item_idx: list[int] = []
+            ptr = [0]
+            for subset, _mask in subsets:
+                item_idx.extend(subset)
+                ptr.append(len(item_idx))
+            ctx._subset_items.append(np.asarray(item_idx, dtype=np.int32))
+            ctx._subset_ptr.append(np.asarray(ptr, dtype=np.int32))
+            ctx._subset_mask.append(
+                np.asarray([mask for _subset, mask in subsets], dtype=np.uint64)
+            )
+            ctx._subset_n.append(
+                np.asarray([len(subset) for subset, _mask in subsets], dtype=np.int16)
+            )
         ctx.event_times = [t for t, flag in enumerate(has_batch) if flag]
+        ctx._score_pack = None
         return ctx
+
+    def _pareto_cells(
+        self,
+        data: ProcessedInstance,
+        alpha: list[list[float]],
+        rho: list[float],
+        *,
+        alpha_flat=None,
+        num_t: int | None = None,
+        deadline: float | None = None,
+        setup_cost_delta: list[list[float]] | None = None,
+        required_setups: set[tuple[int, int]] | None = None,
+    ) -> list[list[tuple[np.ndarray, ...]]]:
+        """Score cached subsets and Pareto-prune each (u, t) without Batch objects.
+
+        Each cell is ``(span, nitem, delta, mask, spec_idx, sub_idx)``.
+        """
+        chunks: list[list[list[tuple]]] = [
+            [[] for _ in range(self.num_t)] for _ in range(self.num_u)
+        ]
+        tol = CHECKER_TOL["pricing_dp"]
+        rho_vec = np.asarray(rho, dtype=np.float64)
+        num_i = int(rho_vec.shape[0])
+        flat = None
+        alpha_arr = None
+        if alpha_flat is not None and num_t is not None:
+            flat = np.asarray(alpha_flat, dtype=np.float64)
+        elif alpha:
+            alpha_arr = np.asarray(alpha, dtype=np.float64)
+
+        for spec_idx, spec in enumerate(self.pool_specs):
+            if deadline is not None and time.perf_counter() >= deadline:
+                break
+            nsub = int(self._subset_n[spec_idx].shape[0])
+            if nsub == 0:
+                continue
+            u_idx, t_idx, span = spec.u_idx, spec.t_idx, spec.span
+            p_cum_u = self.p_cum[u_idx]
+            if setup_cost_delta is not None:
+                p_cum_u = p_cum_u + setup_cost_delta[u_idx][t_idx]
+            comp_t = t_idx + span - 1
+            if flat is not None and 0 <= comp_t < int(num_t):
+                coeff = rho_vec + flat[comp_t:comp_t + num_i * int(num_t):int(num_t)]
+            elif alpha_arr is not None and 0 <= comp_t < alpha_arr.shape[1]:
+                coeff = rho_vec + alpha_arr[:, comp_t]
+            else:
+                coeff = rho_vec
+            dual_sum = np.add.reduceat(coeff[self._subset_items[spec_idx]], self._subset_ptr[spec_idx][:-1])
+            deltas = p_cum_u - dual_sum
+            keep_nonnegative = required_setups is not None and (u_idx, t_idx) in required_setups
+            chosen = _negative_indices(deltas, keep_nonnegative)
+            if chosen.size == 0:
+                continue
+            chunks[u_idx][t_idx].append((span, spec_idx, chosen, deltas))
+
+        empty = (
+            np.empty(0, np.int64),
+            np.empty(0, np.int16),
+            np.empty(0, np.float64),
+            np.empty(0, np.uint64),
+            np.empty(0, np.int32),
+            np.empty(0, np.int32),
+        )
+        cells: list[list[tuple[list, ...]]] = [
+            [empty for _ in range(self.num_t)] for _ in range(self.num_u)
+        ]
+        for u_idx in range(self.num_u):
+            for t_idx in range(self.num_t):
+                parts = chunks[u_idx][t_idx]
+                if not parts:
+                    continue
+                total = sum(part[2].size for part in parts)
+                span_arr = np.empty(total, dtype=np.int64)
+                n_arr = np.empty(total, dtype=np.int16)
+                d_arr = np.empty(total, dtype=np.float64)
+                m_arr = np.empty(total, dtype=np.uint64)
+                spec_arr = np.empty(total, dtype=np.int32)
+                sub_arr = np.empty(total, dtype=np.int32)
+                pos = 0
+                for span, spec_idx, chosen, deltas in parts:
+                    n = int(chosen.size)
+                    span_arr[pos:pos + n] = span
+                    spec_arr[pos:pos + n] = spec_idx
+                    sub_arr[pos:pos + n] = chosen
+                    d_arr[pos:pos + n] = deltas[chosen]
+                    m_arr[pos:pos + n] = self._subset_mask[spec_idx][chosen]
+                    n_arr[pos:pos + n] = self._subset_n[spec_idx][chosen]
+                    pos += n
+                order = np.lexsort((np.arange(total), d_arr, n_arr, span_arr))
+                keep = _pareto_keep_numba(order, span_arr, d_arr, m_arr)
+                cells[u_idx][t_idx] = (
+                    span_arr[keep],
+                    n_arr[keep],
+                    d_arr[keep],
+                    m_arr[keep],
+                    spec_arr[keep],
+                    sub_arr[keep],
+                )
+        return cells
+
+    def _ensure_score_pack(self) -> None:
+        """Concatenate per-spec subset tables so one compiled pass can score them."""
+        if self._score_pack is not None:
+            return
+        nspec = len(self.pool_specs)
+        spec_u = np.empty(nspec, dtype=np.int32)
+        spec_t = np.empty(nspec, dtype=np.int32)
+        spec_span = np.empty(nspec, dtype=np.int32)
+        spec_comp = np.empty(nspec, dtype=np.int32)
+        spec_p = np.empty(nspec, dtype=np.float64)
+        spec_ptr = np.zeros(nspec + 1, dtype=np.int32)
+        masks: list[np.ndarray] = []
+        ns: list[np.ndarray] = []
+        iptr = [0]
+        item_chunks: list[np.ndarray] = []
+        for s, spec in enumerate(self.pool_specs):
+            spec_u[s] = spec.u_idx
+            spec_t[s] = spec.t_idx
+            spec_span[s] = spec.span
+            spec_comp[s] = spec.t_idx + spec.span - 1
+            spec_p[s] = self.p_cum[spec.u_idx]
+            nsub = int(self._subset_mask[s].shape[0])
+            spec_ptr[s + 1] = spec_ptr[s] + nsub
+            masks.append(self._subset_mask[s])
+            ns.append(self._subset_n[s])
+            local_ptr = self._subset_ptr[s]
+            local_items = self._subset_items[s]
+            base = iptr[-1]
+            item_chunks.append(local_items)
+            for j in range(nsub):
+                iptr.append(base + int(local_ptr[j + 1]))
+        self._score_pack = {
+            "u": spec_u,
+            "t": spec_t,
+            "span": spec_span,
+            "comp": spec_comp,
+            "p": spec_p,
+            "spec_ptr": spec_ptr,
+            "iptr": np.asarray(iptr, dtype=np.int32),
+            "items": np.concatenate(item_chunks) if item_chunks else np.empty(0, dtype=np.int32),
+            "mask": np.concatenate(masks) if masks else np.empty(0, dtype=np.uint64),
+            "n": np.concatenate(ns) if ns else np.empty(0, dtype=np.int16),
+        }
+
+    def score_route_batches(
+        self,
+        data: ProcessedInstance,
+        alpha: list[list[float]],
+        rho: list[float],
+        *,
+        alpha_flat=None,
+        num_t: int | None = None,
+        deadline: float | None = None,
+        setup_cost_delta: list[list[float]] | None = None,
+        required_setups: set[tuple[int, int]] | None = None,
+        forbidden: set[tuple[int, int]] | None = None,
+    ) -> "_FlatRoute":
+        """Score every cached subset once, then Pareto-prune and delta-sort each time."""
+        del data
+        self._ensure_score_pack()
+        pack = self._score_pack
+        nspec = int(pack["u"].shape[0])
+        periods = self.num_t if num_t is None else int(num_t)
+        num_i = len(rho)
+        alpha_mat = np.zeros((num_i, periods), dtype=np.float64)
+        if alpha_flat is not None:
+            flat_arr = np.asarray(alpha_flat, dtype=np.float64)
+            alpha_mat[:, :] = flat_arr[: num_i * periods].reshape(num_i, periods)
+        elif alpha:
+            alpha_mat[:, :] = np.asarray(alpha, dtype=np.float64)[:, :periods]
+        rho_vec = np.asarray(rho, dtype=np.float64)
+        spec_p = pack["p"].copy()
+        if setup_cost_delta is not None:
+            for s in range(nspec):
+                u_idx = int(pack["u"][s])
+                t_idx = int(pack["t"][s])
+                spec_p[s] += setup_cost_delta[u_idx][t_idx]
+        skip = np.zeros(nspec, dtype=np.uint8)
+        keep_all = np.zeros(nspec, dtype=np.uint8)
+        if forbidden:
+            for s in range(nspec):
+                if (int(pack["u"][s]), int(pack["t"][s])) in forbidden:
+                    skip[s] = 1
+        if required_setups:
+            for s in range(nspec):
+                if (int(pack["u"][s]), int(pack["t"][s])) in required_setups:
+                    keep_all[s] = 1
+        ptr, delta_b, mask_b, span_b, n_b, u_b, spec_b, sub_b = _emit_negative_buckets(
+            pack["u"],
+            pack["t"],
+            pack["span"],
+            pack["comp"],
+            spec_p,
+            pack["spec_ptr"],
+            skip,
+            keep_all,
+            pack["iptr"],
+            pack["items"],
+            pack["mask"],
+            pack["n"],
+            rho_vec,
+            alpha_mat,
+            self.num_t,
+        )
+        pieces: list[list[np.ndarray]] = [[] for _ in range(7)]
+        offsets = [0]
+        for t_idx in range(self.num_t):
+            a = int(ptr[t_idx])
+            b = int(ptr[t_idx + 1])
+            if deadline is not None and time.perf_counter() >= deadline:
+                while len(offsets) < self.num_t + 1:
+                    offsets.append(offsets[-1])
+                break
+            if a == b:
+                offsets.append(offsets[-1])
+                continue
+            span = span_b[a:b]
+            delta = delta_b[a:b]
+            mask = mask_b[a:b]
+            nitem = n_b[a:b]
+            order = np.lexsort((np.arange(b - a), delta, nitem, span))
+            keep = _pareto_keep_numba(order, span, delta, mask)
+            delta_k = delta[keep]
+            delta_order = np.argsort(delta_k, kind="mergesort")
+            pieces[0].append(delta_k[delta_order])
+            pieces[1].append(mask[keep][delta_order])
+            pieces[2].append(span[keep][delta_order])
+            pieces[3].append(u_b[a:b][keep][delta_order])
+            pieces[4].append(np.full(delta_order.shape[0], t_idx, dtype=np.int64))
+            pieces[5].append(spec_b[a:b][keep][delta_order])
+            pieces[6].append(sub_b[a:b][keep][delta_order])
+            offsets.append(offsets[-1] + int(delta_order.shape[0]))
+        if pieces[0]:
+            stacked = [np.concatenate(col) for col in pieces]
+        else:
+            stacked = [
+                np.empty(0, np.float64),
+                np.empty(0, np.uint64),
+                np.empty(0, np.int64),
+                np.empty(0, np.int64),
+                np.empty(0, np.int64),
+                np.empty(0, np.int32),
+                np.empty(0, np.int32),
+            ]
+        return _FlatRoute(
+            delta=stacked[0],
+            mask=stacked[1],
+            span=stacked[2],
+            u_idx=stacked[3],
+            t_idx=stacked[4],
+            spec_idx=stacked[5],
+            sub_idx=stacked[6],
+            offsets=np.asarray(offsets, dtype=np.int64),
+        )
 
     def build_catalog(
         self,
@@ -257,62 +555,184 @@ class EBRPContext:
         """第二阶段：批目录生成。
 
         将当前对偶 (α, ρ) 代入缓存子集，计算 δ(B)，滤除 δ≥0，
-        经 Pareto 支配剪枝后产出批目录。
+        经 Pareto 支配剪枝后才为留下的批次建立对象。
         """
+        cells = self._pareto_cells(
+            data,
+            alpha,
+            rho,
+            alpha_flat=alpha_flat,
+            num_t=num_t,
+            deadline=deadline,
+            setup_cost_delta=setup_cost_delta,
+            required_setups=required_setups,
+        )
         catalog: list[list[list[Batch]]] = [
             [[] for _ in range(self.num_t)] for _ in range(self.num_u)
         ]
-
-        for spec_idx, spec in enumerate(self.pool_specs):
-            if deadline is not None and time.perf_counter() >= deadline:
-                break
-            u_idx, t_idx, span = spec.u_idx, spec.t_idx, spec.span
-            p_cum_u = self.p_cum[u_idx]
-            if setup_cost_delta is not None:
-                p_cum_u = p_cum_u + setup_cost_delta[u_idx][t_idx]
-            for subset, item_mask in self._subset_cache[spec_idx]:
-                # 同一热压罐批次中的所有工件均在批次最长固化时间结束时出罐。
-                comp_t = t_idx + span - 1
-                if alpha_flat is not None and num_t is not None:
-                    arrival_dual = lambda i: alpha_flat[i * num_t + comp_t] if 0 <= comp_t < num_t else 0.0
-                else:
-                    arrival_dual = lambda i: alpha[i][comp_t] if 0 <= comp_t < self.num_t else 0.0
-                dual_sum_val = sum(rho[i] + arrival_dual(i) for i in subset)
-                delta = p_cum_u - dual_sum_val
-                # Without a Y=1 branch, a nonnegative batch can never improve
-                # the pricing objective and may be discarded.  At a forced
-                # setup (u,t), however, one batch must be chosen to satisfy
-                # Y[u,t]=1.  Such a mandatory batch can have a nonnegative
-                # individual delta while the complete schedule still has a
-                # negative reduced cost, so it must remain in the catalog.
-                if (
-                    delta >= 0 - CHECKER_TOL["pricing_dp"]
-                    and (required_setups is None or (u_idx, t_idx) not in required_setups)
-                ):
-                    continue
-
-                catalog[u_idx][t_idx].append(
-                    Batch(
-                        u_idx=u_idx,
-                        t_idx=t_idx,
-                        span=span,
-                        items=subset,
-                        delta=delta,
-                        item_mask=item_mask,
-                    )
-                )
-
-        # Pareto 支配剪枝（per (u,t)）
         for u_idx in range(self.num_u):
             for t_idx in range(self.num_t):
-                catalog[u_idx][t_idx] = _prune_batch_cell(catalog[u_idx][t_idx])
-
+                span, _nitem, delta, mask, spec, sub = cells[u_idx][t_idx]
+                cell = catalog[u_idx][t_idx]
+                for i in range(len(span)):
+                    subset = self._subset_cache[int(spec[i])][int(sub[i])][0]
+                    cell.append(
+                        Batch(
+                            u_idx=u_idx,
+                            t_idx=t_idx,
+                            span=int(span[i]),
+                            items=subset,
+                            delta=float(delta[i]),
+                            item_mask=int(mask[i]),
+                        )
+                    )
         return catalog
 
 
 # ──────────────────────────────────────────────────────────────────────
 # Pareto 支配剪枝
 # ──────────────────────────────────────────────────────────────────────
+
+@dataclass
+class _FlatRoute:
+    delta: np.ndarray
+    mask: np.ndarray
+    span: np.ndarray
+    u_idx: np.ndarray
+    t_idx: np.ndarray
+    spec_idx: np.ndarray
+    sub_idx: np.ndarray
+    offsets: np.ndarray
+
+
+@njit(cache=True)
+def _emit_negative_buckets(
+    spec_u,
+    spec_t,
+    spec_span,
+    spec_comp,
+    spec_p,
+    spec_ptr,
+    spec_skip,
+    spec_keep_all,
+    iptr,
+    items,
+    masks,
+    nitems,
+    rho,
+    alpha,
+    num_t,
+):
+    """One pass over every cached subset. Negatives are bucketed by start time."""
+    nspec = spec_u.shape[0]
+    counts = np.zeros(num_t, dtype=np.int32)
+    for s in range(nspec):
+        if spec_skip[s] != 0:
+            continue
+        comp = spec_comp[s]
+        p_cum = spec_p[s]
+        t_idx = spec_t[s]
+        keep_all = spec_keep_all[s] != 0
+        in_horizon = 0 <= comp < alpha.shape[1]
+        for j in range(spec_ptr[s], spec_ptr[s + 1]):
+            acc = 0.0
+            for q in range(iptr[j], iptr[j + 1]):
+                i_idx = items[q]
+                acc += rho[i_idx]
+                if in_horizon:
+                    acc += alpha[i_idx, comp]
+            if keep_all or p_cum - acc < -1e-9:
+                if 0 <= t_idx < num_t:
+                    counts[t_idx] += 1
+    ptr = np.empty(num_t + 1, dtype=np.int32)
+    ptr[0] = 0
+    for t_idx in range(num_t):
+        ptr[t_idx + 1] = ptr[t_idx] + counts[t_idx]
+    total = int(ptr[num_t])
+    head = ptr.copy()
+    out_delta = np.empty(total, dtype=np.float64)
+    out_mask = np.empty(total, dtype=np.uint64)
+    out_span = np.empty(total, dtype=np.int64)
+    out_n = np.empty(total, dtype=np.int16)
+    out_u = np.empty(total, dtype=np.int64)
+    out_spec = np.empty(total, dtype=np.int32)
+    out_sub = np.empty(total, dtype=np.int32)
+    for s in range(nspec):
+        if spec_skip[s] != 0:
+            continue
+        comp = spec_comp[s]
+        p_cum = spec_p[s]
+        t_idx = spec_t[s]
+        keep_all = spec_keep_all[s] != 0
+        in_horizon = 0 <= comp < alpha.shape[1]
+        local = 0
+        for j in range(spec_ptr[s], spec_ptr[s + 1]):
+            acc = 0.0
+            for q in range(iptr[j], iptr[j + 1]):
+                i_idx = items[q]
+                acc += rho[i_idx]
+                if in_horizon:
+                    acc += alpha[i_idx, comp]
+            delta = p_cum - acc
+            if (keep_all or delta < -1e-9) and 0 <= t_idx < num_t:
+                w = head[t_idx]
+                head[t_idx] = w + 1
+                out_delta[w] = delta
+                out_mask[w] = masks[j]
+                out_span[w] = spec_span[s]
+                out_n[w] = nitems[j]
+                out_u[w] = spec_u[s]
+                out_spec[w] = s
+                out_sub[w] = local
+            local += 1
+    return ptr, out_delta, out_mask, out_span, out_n, out_u, out_spec, out_sub
+
+
+@njit(cache=True)
+def _negative_indices(deltas, keep_nonnegative):
+    n = deltas.shape[0]
+    sel = np.empty(n, dtype=np.int32)
+    nn = 0
+    if keep_nonnegative:
+        for i in range(n):
+            sel[nn] = i
+            nn += 1
+    else:
+        for i in range(n):
+            if deltas[i] < -1e-9:
+                sel[nn] = i
+                nn += 1
+    return sel[:nn]
+
+
+@njit(cache=True)
+def _pareto_keep_numba(order, span, delta, mask):
+    """Pareto indices. ``order`` is already sorted by span, size, delta."""
+    n = order.shape[0]
+    kept_pos = np.empty(n, dtype=np.int32)
+    ks = np.empty(n, dtype=np.int64)
+    km = np.empty(n, dtype=np.uint64)
+    kd = np.empty(n, dtype=np.float64)
+    nkeep = 0
+    tol = 1e-9
+    for p in range(n):
+        i = order[p]
+        si = span[i]
+        mi = mask[i]
+        di = delta[i]
+        dominated = False
+        for k in range(nkeep):
+            if ks[k] <= si and (km[k] & mi) == km[k] and kd[k] <= di + tol:
+                dominated = True
+                break
+        if not dominated:
+            kept_pos[nkeep] = i
+            ks[nkeep] = si
+            km[nkeep] = mi
+            kd[nkeep] = di
+            nkeep += 1
+    return kept_pos[:nkeep]
+
 
 def _prune_batch_cell(batches: list[Batch]) -> list[Batch]:
     """Pareto 支配剪枝：若 A.items ⊆ B.items 且 A.δ ≤ B.δ 且 A.span ≤ B.span，
@@ -322,17 +742,31 @@ def _prune_batch_cell(batches: list[Batch]) -> list[Batch]:
         return batches
     tol = CHECKER_TOL["pricing_dp"]
 
-    # 按 (span, |items|, delta) 升序，优先处理更小跨期 + 更少物料的批
+    # 按 (span, |items|, delta) 升序，优先处理更小跨期 + 更少物料的批。
+    # 掩码包含关系与 items 的子集关系相同。
     sorted_batches = sorted(batches, key=lambda b: (b.span, len(b.items), b.delta))
     kept: list[Batch] = []
+    kept_span: list[int] = []
+    kept_mask: list[int] = []
+    kept_delta: list[float] = []
     for b in sorted_batches:
         dominated = False
-        for o in kept:
-            if o.span <= b.span and o.items <= b.items and o.delta <= b.delta + tol:
+        b_mask = b.item_mask
+        b_span = b.span
+        b_delta = b.delta
+        for k in range(len(kept)):
+            if (
+                kept_span[k] <= b_span
+                and (kept_mask[k] & b_mask) == kept_mask[k]
+                and kept_delta[k] <= b_delta + tol
+            ):
                 dominated = True
                 break
         if not dominated:
             kept.append(b)
+            kept_span.append(b_span)
+            kept_mask.append(b_mask)
+            kept_delta.append(b_delta)
     return kept
 
 
@@ -371,6 +805,380 @@ def _next_event_t(
             return t
         t += 1
     return num_t
+
+
+_ROUTE_SHIFT = 48
+_COMPILED_ROUTE_FAILED = False
+_MASK_DOMINANCE = True
+
+
+def _compiled_route_supported(batches_by_t: list[list[Batch]], num_t: int, start_mask: int) -> bool:
+    if num_t >= (1 << (64 - _ROUTE_SHIFT)) or start_mask.bit_length() > _ROUTE_SHIFT:
+        return False
+    for batches in batches_by_t:
+        for batch in batches:
+            if batch.item_mask.bit_length() > _ROUTE_SHIFT:
+                return False
+    return True
+
+
+@njit(cache=True, nogil=True)
+def _route_allows(used, batch_mask, rf_differ, rf_same):
+    new_mask = used | batch_mask
+    for k in range(rf_differ.shape[0]):
+        if (new_mask & rf_differ[k, 0]) and (new_mask & rf_differ[k, 1]):
+            return False
+    if batch_mask == 0:
+        for k in range(rf_same.shape[0]):
+            has_i = (new_mask & rf_same[k, 0]) != 0
+            has_j = (new_mask & rf_same[k, 1]) != 0
+            if has_i != has_j:
+                return False
+    return True
+
+
+@njit(cache=True, nogil=True)
+def _route_sri_cost(used, batch_mask, sri_masks, sri_pi):
+    n = sri_masks.shape[0]
+    if n == 0:
+        return 0.0
+    nxt = used | batch_mask
+    total = 0.0
+    one = np.uint64(1)
+    for k in range(n):
+        item_mask = sri_masks[k]
+        before = 0
+        after = 0
+        left = used & item_mask
+        right = nxt & item_mask
+        while left:
+            left &= left - one
+            before += 1
+        while right:
+            right &= right - one
+            after += 1
+        total += -sri_pi[k] * ((after // 2) - (before // 2))
+    return total
+
+
+@njit(cache=True, nogil=True)
+def _route_idle_target(t_idx, next_event, forced_times):
+    nxt = next_event[t_idx]
+    for k in range(forced_times.shape[0]):
+        ft = forced_times[k]
+        if t_idx <= ft < nxt:
+            return ft
+    return nxt
+
+
+@njit(cache=True, nogil=True)
+def _route_search(
+    deltas,
+    masks,
+    spans,
+    u_idxs,
+    offsets,
+    next_event,
+    lb_sum,
+    forced_u,
+    forced_times,
+    rf_differ,
+    rf_same,
+    sri_masks,
+    sri_pi,
+    tol,
+    stop,
+    start_t,
+    start_mask,
+    memo_cost,
+    memo_dec,
+    counter,
+    hits,
+    timed,
+):
+    """Iterative exact DP. A timed-out branch returns +inf and is not cached."""
+    num_t = forced_u.shape[0]
+    shift = np.uint64(48)
+    cap = num_t + 3
+    st_t = np.empty(cap, dtype=np.int64)
+    st_used = np.empty(cap, dtype=np.uint64)
+    st_phase = np.empty(cap, dtype=np.int64)
+    st_cursor = np.empty(cap, dtype=np.int64)
+    st_best = np.empty(cap, dtype=np.float64)
+    st_kind = np.empty(cap, dtype=np.uint64)
+    st_next = np.empty(cap, dtype=np.uint64)
+    st_batch = np.empty(cap, dtype=np.uint64)
+    st_wait = np.empty(cap, dtype=np.int8)
+    st_launch_et = np.empty(cap, dtype=np.int64)
+    st_launch_bi = np.empty(cap, dtype=np.int64)
+    res = np.empty(cap, dtype=np.float64)
+    st_t[0] = start_t
+    st_used[0] = start_mask
+    st_phase[0] = 0
+    sp = 0
+    rp = 0
+
+    while sp >= 0:
+        phase = st_phase[sp]
+        t_idx = st_t[sp]
+        used = st_used[sp]
+        if phase == 0:
+            counter[0] += 1
+            if (counter[0] & 63) == 0 and stop[0] != 0:
+                timed[0] = 1
+                res[rp] = np.inf
+                rp += 1
+                sp -= 1
+                continue
+            if t_idx >= num_t:
+                if _route_allows(used, np.uint64(0), rf_differ, rf_same):
+                    res[rp] = 0.0
+                else:
+                    res[rp] = np.inf
+                rp += 1
+                sp -= 1
+                continue
+            key = (np.uint64(t_idx) << shift) | used
+            if key in memo_cost:
+                hits[0] += 1
+                res[rp] = memo_cost[key]
+                rp += 1
+                sp -= 1
+                continue
+            if forced_u[t_idx] >= 0:
+                st_phase[sp] = 2
+                st_cursor[sp] = offsets[t_idx]
+                st_best[sp] = np.inf
+                st_kind[sp] = 0
+                st_next[sp] = 0
+                st_batch[sp] = 0
+                st_wait[sp] = 0
+            else:
+                st_phase[sp] = 1
+                child = sp + 1
+                st_t[child] = _route_idle_target(t_idx, next_event, forced_times)
+                st_used[child] = used
+                st_phase[child] = 0
+                sp = child
+            continue
+
+        if phase == 1:
+            rp -= 1
+            st_best[sp] = res[rp]
+            st_kind[sp] = 1
+            st_next[sp] = np.uint64(_route_idle_target(t_idx, next_event, forced_times))
+            st_batch[sp] = 0
+            st_phase[sp] = 2
+            st_cursor[sp] = offsets[t_idx]
+            st_wait[sp] = 0
+            continue
+
+        end = offsets[t_idx + 1]
+        u_req = forced_u[t_idx]
+        if st_wait[sp]:
+            rp -= 1
+            launched_bi = st_launch_bi[sp]
+            cand = (
+                deltas[launched_bi]
+                + _route_sri_cost(used, masks[launched_bi], sri_masks, sri_pi)
+                + res[rp]
+            )
+            st_wait[sp] = 0
+            if cand < st_best[sp] - tol:
+                st_best[sp] = cand
+                st_kind[sp] = 2
+                st_next[sp] = np.uint64(st_launch_et[sp])
+                st_batch[sp] = np.uint64(st_launch_bi[sp])
+            st_cursor[sp] += 1
+
+        cursor = st_cursor[sp]
+        launched = False
+        while cursor < end:
+            bi = cursor
+            if u_req >= 0 and u_idxs[bi] != u_req:
+                cursor += 1
+                continue
+            batch_mask = masks[bi]
+            if batch_mask & used:
+                cursor += 1
+                continue
+            if not _route_allows(used, batch_mask, rf_differ, rf_same):
+                cursor += 1
+                continue
+            et = t_idx + spans[bi]
+            if et > num_t:
+                cursor += 1
+                continue
+            crossed = False
+            for fk in range(forced_times.shape[0]):
+                ft = forced_times[fk]
+                if t_idx < ft < et:
+                    crossed = True
+                    break
+            if crossed or deltas[bi] + lb_sum[et] >= st_best[sp] - tol:
+                cursor += 1
+                continue
+            st_cursor[sp] = cursor
+            st_wait[sp] = 1
+            st_launch_et[sp] = et
+            st_launch_bi[sp] = bi
+            child = sp + 1
+            st_t[child] = et
+            st_used[child] = used | batch_mask
+            st_phase[child] = 0
+            sp = child
+            launched = True
+            break
+        if launched:
+            continue
+        key = (np.uint64(t_idx) << shift) | used
+        best = st_best[sp]
+        memo_cost[key] = best
+        memo_dec[key] = (st_kind[sp] << np.uint64(48)) | (st_next[sp] << np.uint64(32)) | st_batch[sp]
+        res[rp] = best
+        rp += 1
+        sp -= 1
+
+    if rp <= 0:
+        return np.inf
+    return res[rp - 1]
+
+
+def _pairs_to_array(pairs: tuple[tuple[int, int], ...]) -> np.ndarray:
+    out = np.zeros((len(pairs), 2), dtype=np.uint64)
+    for i, (a, b) in enumerate(pairs):
+        out[i, 0] = a
+        out[i, 1] = b
+    return out
+
+
+def _try_compiled_route(
+    batches_by_t: list[list[Batch]],
+    num_t: int,
+    *,
+    deadline: float | None,
+    start_t: int,
+    start_mask: int,
+    forced_at: dict[int, int],
+    sri_terms: tuple[tuple[int, float], ...],
+    rf_differ: tuple[tuple[int, int], ...],
+    rf_same: tuple[tuple[int, int], ...],
+    next_event: list[int],
+    lb_sum: list[float],
+) -> tuple[float, dict[tuple[int, int], _MemoEntry], int, int, bool] | None:
+    """Compiled exact route. None means the Python recursion must be used."""
+    global _COMPILED_ROUTE_FAILED
+    if _COMPILED_ROUTE_FAILED or not _compiled_route_supported(batches_by_t, num_t, start_mask):
+        return None
+    flat: list[Batch] = []
+    for batches in batches_by_t:
+        flat.extend(batches)
+    for batch in flat:
+        if batch.item_mask < 0:
+            return None
+    for pairs in (rf_differ, rf_same):
+        for a, b in pairs:
+            if a < 0 or b < 0 or a.bit_length() > _ROUTE_SHIFT or b.bit_length() > _ROUTE_SHIFT:
+                return None
+    n = len(flat)
+    deltas = np.empty(n, dtype=np.float64)
+    masks = np.empty(n, dtype=np.uint64)
+    spans = np.empty(n, dtype=np.int64)
+    u_idxs = np.empty(n, dtype=np.int64)
+    offsets = np.empty(num_t + 1, dtype=np.int64)
+    offsets[0] = 0
+    cursor = 0
+    for t, batches in enumerate(batches_by_t):
+        for batch in batches:
+            deltas[cursor] = batch.delta
+            masks[cursor] = batch.item_mask
+            spans[cursor] = batch.span
+            u_idxs[cursor] = batch.u_idx
+            cursor += 1
+        offsets[t + 1] = cursor
+    forced_u = np.full(num_t, -1, dtype=np.int64)
+    for t, u in forced_at.items():
+        if 0 <= t < num_t:
+            forced_u[t] = u
+    forced_times = np.asarray(sorted(forced_at), dtype=np.int64)
+    sri_masks = np.asarray([m for m, _pi in sri_terms], dtype=np.uint64)
+    sri_pi = np.asarray([pi for _m, pi in sri_terms], dtype=np.float64)
+    from numba.typed import Dict
+    from numba import types
+
+    memo_cost = Dict.empty(types.uint64, types.float64)
+    memo_dec = Dict.empty(types.uint64, types.uint64)
+    counter = np.zeros(1, dtype=np.int64)
+    hits = np.zeros(1, dtype=np.int64)
+    timed = np.zeros(1, dtype=np.int8)
+    stop = np.zeros(1, dtype=np.int8)
+    timer = None
+    if deadline is not None:
+        delay = max(0.0, float(deadline) - time.perf_counter())
+
+        def _trip_deadline(flag=stop) -> None:
+            flag[0] = 1
+
+        timer = threading.Timer(delay, _trip_deadline)
+        timer.daemon = True
+        timer.start()
+    try:
+        cost = _route_search(
+            deltas,
+            masks,
+            spans,
+            u_idxs,
+            offsets,
+            np.asarray(next_event, dtype=np.int64),
+            np.asarray(lb_sum, dtype=np.float64),
+            forced_u,
+            forced_times,
+            _pairs_to_array(rf_differ),
+            _pairs_to_array(rf_same),
+            sri_masks,
+            sri_pi,
+            float(CHECKER_TOL["pricing_dp"]),
+            stop,
+            int(start_t),
+            np.uint64(start_mask),
+            memo_cost,
+            memo_dec,
+            counter,
+            hits,
+            timed,
+        )
+    except Exception as exc:
+        _COMPILED_ROUTE_FAILED = True
+        print(f"[EBRP] compiled routing disabled: {exc}", file=sys.stderr, flush=True)
+        return None
+    finally:
+        if timer is not None:
+            timer.cancel()
+    memo: dict[tuple[int, int], _MemoEntry] = {}
+    t_idx = start_t
+    used = start_mask
+    for _guard in range(num_t + 1):
+        if t_idx >= num_t:
+            break
+        key = (np.uint64(t_idx) << np.uint64(_ROUTE_SHIFT)) | np.uint64(used)
+        if key not in memo_dec:
+            break
+        dec = int(memo_dec[key])
+        kind_i = dec >> 48
+        next_t = (dec >> 32) & 0xFFFF
+        batch_i = dec & 0xFFFFFFFF
+        if kind_i == 2 and batch_i < len(flat):
+            batch = flat[batch_i]
+            memo[(t_idx, used)] = _MemoEntry(float(cost), "batch", next_t=next_t, batch=batch)
+            used |= batch.item_mask
+            t_idx = next_t
+        elif kind_i == 1:
+            memo[(t_idx, used)] = _MemoEntry(float(cost), "idle", next_t=next_t)
+            t_idx = next_t
+        else:
+            memo[(t_idx, used)] = _MemoEntry(float(cost), "end")
+            break
+    return float(cost), memo, int(counter[0]), int(hits[0]), bool(timed[0])
 
 
 def _solve_routing(
@@ -466,6 +1274,29 @@ def _solve_routing(
             best_at_t = batches[0].delta  # batches 已按 delta 升序排列
         lb_sum[t] = best_at_t + lb_sum[t + 1]
     lb_sum[_num_t] = 0.0
+
+    if progress_interval_sec <= 0:
+        compiled = _try_compiled_route(
+            batches_by_t,
+            num_t,
+            deadline=deadline,
+            start_t=start_t,
+            start_mask=start_mask,
+            forced_at=_forced_at,
+            sri_terms=_sri_terms,
+            rf_differ=_rf_differ,
+            rf_same=_rf_same,
+            next_event=next_event,
+            lb_sum=lb_sum,
+        )
+        if compiled is not None:
+            cost, memo_out, nodes, hits, timed_out = compiled
+            st.nodes_expanded += nodes
+            st.memo_hits += hits
+            if timed_out:
+                st.timed_out = True
+                st.exact = False
+            return cost, memo_out
 
     _node_counter = [0]
 
@@ -630,6 +1461,557 @@ def _decode_plan(
 # 主入口
 # ──────────────────────────────────────────────────────────────────────
 
+def _materialize_route(ctx: EBRPContext, flat: _FlatRoute) -> list[list[Batch]]:
+    num_t = int(flat.offsets.shape[0]) - 1
+    by_t: list[list[Batch]] = [[] for _ in range(num_t)]
+    for i in range(flat.delta.shape[0]):
+        spec = int(flat.spec_idx[i])
+        sub = int(flat.sub_idx[i])
+        subset = ctx._subset_cache[spec][sub][0]
+        t_idx = int(flat.t_idx[i])
+        by_t[t_idx].append(
+            Batch(
+                u_idx=int(flat.u_idx[i]),
+                t_idx=t_idx,
+                span=int(flat.span[i]),
+                items=subset,
+                delta=float(flat.delta[i]),
+                item_mask=int(flat.mask[i]),
+            )
+        )
+    return by_t
+
+
+def _batch_on_path(ctx: EBRPContext, flat: _FlatRoute, batch_i: int) -> Batch:
+    spec = int(flat.spec_idx[batch_i])
+    sub = int(flat.sub_idx[batch_i])
+    subset = ctx._subset_cache[spec][sub][0]
+    t_idx = int(flat.t_idx[batch_i])
+    return Batch(
+        u_idx=int(flat.u_idx[batch_i]),
+        t_idx=t_idx,
+        span=int(flat.span[batch_i]),
+        items=subset,
+        delta=float(flat.delta[batch_i]),
+        item_mask=int(flat.mask[batch_i]),
+    )
+
+
+def _route_flat(
+    ctx: EBRPContext,
+    flat: _FlatRoute,
+    num_t: int,
+    *,
+    deadline: float | None,
+    st: EBRPStats,
+    progress_interval_sec: float,
+    machine: str,
+    forced_at: dict[int, int] | None,
+    sri_terms: tuple[tuple[int, float], ...],
+    rf_differ: tuple[tuple[int, int], ...],
+    rf_same: tuple[tuple[int, int], ...],
+) -> tuple[float, dict[tuple[int, int], _MemoEntry]]:
+    """Route on the array catalog. Batch objects are built only if the compiled search cannot run."""
+    if progress_interval_sec > 0:
+        return _solve_routing(
+            _materialize_route(ctx, flat),
+            num_t,
+            deadline=deadline,
+            st=st,
+            progress_interval_sec=progress_interval_sec,
+            machine=machine,
+            forced_at=forced_at,
+            sri_terms=sri_terms,
+            rf_differ=rf_differ,
+            rf_same=rf_same,
+        )
+    forced = forced_at or {}
+    next_event = [num_t] * (num_t + 1)
+    nxt = num_t
+    for t_idx in range(num_t - 1, -1, -1):
+        next_event[t_idx] = nxt
+        if int(flat.offsets[t_idx + 1]) > int(flat.offsets[t_idx]):
+            nxt = t_idx
+    lb_sum = [0.0] * (num_t + 1)
+    for t_idx in range(num_t - 1, -1, -1):
+        begin = int(flat.offsets[t_idx])
+        end = int(flat.offsets[t_idx + 1])
+        best_at_t = 0.0
+        if t_idx in forced:
+            u_req = forced[t_idx]
+            forced_deltas = [
+                float(flat.delta[i])
+                for i in range(begin, end)
+                if int(flat.u_idx[i]) == u_req
+            ]
+            best_at_t = min(forced_deltas) if forced_deltas else 0.0
+        elif end > begin and float(flat.delta[begin]) < 0.0:
+            best_at_t = float(flat.delta[begin])
+        lb_sum[t_idx] = best_at_t + lb_sum[t_idx + 1]
+
+    compiled = _compiled_on_flat(
+        ctx,
+        flat,
+        num_t,
+        deadline=deadline,
+        start_t=0,
+        start_mask=0,
+        forced_at=forced,
+        sri_terms=sri_terms,
+        rf_differ=rf_differ,
+        rf_same=rf_same,
+        next_event=next_event,
+        lb_sum=lb_sum,
+    )
+    if compiled is None:
+        return _solve_routing(
+            _materialize_route(ctx, flat),
+            num_t,
+            deadline=deadline,
+            st=st,
+            progress_interval_sec=0.0,
+            machine=machine,
+            forced_at=forced_at,
+            sri_terms=sri_terms,
+            rf_differ=rf_differ,
+            rf_same=rf_same,
+        )
+    cost, memo, nodes, hits, timed_out = compiled
+    st.nodes_expanded += nodes
+    st.memo_hits += hits
+    if timed_out:
+        st.timed_out = True
+        st.exact = False
+    return cost, memo
+
+
+@njit(cache=True, nogil=True)
+def _forward_search(
+    deltas,
+    masks,
+    spans,
+    u_idxs,
+    offsets,
+    next_event,
+    lb_sum,
+    forced_u,
+    forced_times,
+    rf_differ,
+    rf_same,
+    same_bits,
+    subset_dom,
+    tol,
+    stop,
+    num_t,
+):
+    """Forward exact DP.
+
+    A label is dropped only when another label at the same time has used a
+    subset of its items, costs no more, and the extra items are not part of a
+    Ryan–Foster same-pair.  Identical masks are always reduced to the cheaper
+    one.  Large buckets skip the subset test and keep every distinct mask.
+    """
+    cap = 250000
+    lab_t = np.empty(cap, dtype=np.int64)
+    lab_mask = np.empty(cap, dtype=np.uint64)
+    lab_g = np.empty(cap, dtype=np.float64)
+    lab_pred = np.empty(cap, dtype=np.int32)
+    lab_kind = np.empty(cap, dtype=np.int8)
+    lab_batch = np.empty(cap, dtype=np.int32)
+    lab_next = np.empty(cap, dtype=np.int64)
+    lab_alive = np.empty(cap, dtype=np.uint8)
+    bucket_head = np.full(num_t + 1, -1, dtype=np.int32)
+    bucket_next = np.empty(cap, dtype=np.int32)
+    lab_t[0] = 0
+    lab_mask[0] = 0
+    lab_g[0] = 0.0
+    lab_pred[0] = -1
+    lab_kind[0] = 0
+    lab_batch[0] = -1
+    lab_next[0] = 0
+    lab_alive[0] = 1
+    bucket_head[0] = 0
+    bucket_next[0] = -1
+    nlab = 1
+    best_g = 1e300
+    best_from = -1
+    best_kind = np.int8(1)
+    best_batch = np.int32(-1)
+    best_next = num_t
+    found = 0
+    overflow = 0
+    counter = 0
+    ids = np.empty(cap, dtype=np.int32)
+
+    for t_idx in range(num_t):
+        if stop[0] != 0:
+            break
+        ids_n = 0
+        j = bucket_head[t_idx]
+        while j >= 0:
+            if lab_alive[j] != 0:
+                ids[ids_n] = j
+                ids_n += 1
+            j = bucket_next[j]
+        if ids_n <= 4000:
+            for a in range(ids_n):
+                ia = ids[a]
+                if lab_alive[ia] == 0:
+                    continue
+                ma = lab_mask[ia]
+                ga = lab_g[ia]
+                for b in range(ids_n):
+                    if a == b:
+                        continue
+                    ib = ids[b]
+                    if lab_alive[ib] == 0:
+                        continue
+                    mb = lab_mask[ib]
+                    gb = lab_g[ib]
+                    if gb > ga + tol or (mb & ma) != mb:
+                        continue
+                    if mb == ma:
+                        if gb < ga or ib < ia:
+                            lab_alive[ia] = 0
+                            break
+                    elif subset_dom != 0 and ids_n <= 800 and ((ma ^ mb) & same_bits) == 0:
+                        lab_alive[ia] = 0
+                        break
+        begin = offsets[t_idx]
+        end = offsets[t_idx + 1]
+        u_req = forced_u[t_idx]
+        for a in range(ids_n):
+            ia = ids[a]
+            if lab_alive[ia] == 0:
+                continue
+            counter += 1
+            if (counter & 63) == 0 and stop[0] != 0:
+                break
+            used = lab_mask[ia]
+            g = lab_g[ia]
+            if u_req < 0:
+                nxt = _route_idle_target(t_idx, next_event, forced_times)
+                if nxt >= num_t:
+                    if g < best_g and _route_allows(used, np.uint64(0), rf_differ, rf_same):
+                        best_g = g
+                        best_from = ia
+                        best_kind = np.int8(1)
+                        best_batch = np.int32(-1)
+                        best_next = nxt
+                        found = 1
+                elif nlab < cap:
+                    lab_t[nlab] = nxt
+                    lab_mask[nlab] = used
+                    lab_g[nlab] = g
+                    lab_pred[nlab] = ia
+                    lab_kind[nlab] = 1
+                    lab_batch[nlab] = -1
+                    lab_next[nlab] = nxt
+                    lab_alive[nlab] = 1
+                    bucket_next[nlab] = bucket_head[nxt]
+                    bucket_head[nxt] = nlab
+                    nlab += 1
+                else:
+                    overflow = 1
+            for bi in range(begin, end):
+                if u_req >= 0 and u_idxs[bi] != u_req:
+                    continue
+                batch_mask = masks[bi]
+                if (batch_mask & used) != 0:
+                    continue
+                if not _route_allows(used, batch_mask, rf_differ, rf_same):
+                    continue
+                et = t_idx + spans[bi]
+                if et > num_t:
+                    continue
+                crossed = False
+                for fk in range(forced_times.shape[0]):
+                    ft = forced_times[fk]
+                    if t_idx < ft < et:
+                        crossed = True
+                        break
+                if crossed:
+                    continue
+                g2 = g + deltas[bi]
+                if g2 + lb_sum[et] >= best_g - tol:
+                    continue
+                if et >= num_t:
+                    new_mask = used | batch_mask
+                    if g2 < best_g and _route_allows(new_mask, np.uint64(0), rf_differ, rf_same):
+                        best_g = g2
+                        best_from = ia
+                        best_kind = np.int8(2)
+                        best_batch = np.int32(bi)
+                        best_next = et
+                        found = 1
+                    continue
+                if nlab >= cap:
+                    overflow = 1
+                    continue
+                new_mask = used | batch_mask
+                lab_t[nlab] = et
+                lab_mask[nlab] = new_mask
+                lab_g[nlab] = g2
+                lab_pred[nlab] = ia
+                lab_kind[nlab] = 2
+                lab_batch[nlab] = bi
+                lab_next[nlab] = et
+                lab_alive[nlab] = 1
+                bucket_next[nlab] = bucket_head[et]
+                bucket_head[et] = nlab
+                nlab += 1
+        if overflow != 0:
+            break
+    return (
+        found,
+        overflow,
+        best_g,
+        best_from,
+        best_kind,
+        best_batch,
+        best_next,
+        counter,
+        nlab,
+        lab_pred,
+        lab_kind,
+        lab_batch,
+        lab_next,
+        lab_t,
+        lab_mask,
+    )
+
+
+def _same_pair_bits(rf_same: tuple[tuple[int, int], ...]) -> int:
+    bits = 0
+    for left, right in rf_same:
+        bits |= int(left) | int(right)
+    return bits
+
+
+def _forward_route(
+    ctx: EBRPContext,
+    flat: _FlatRoute,
+    num_t: int,
+    *,
+    deadline: float | None,
+    forced_at: dict[int, int],
+    rf_differ: tuple[tuple[int, int], ...],
+    rf_same: tuple[tuple[int, int], ...],
+    subset_dom: bool,
+    next_event: list[int],
+    lb_sum: list[float],
+) -> tuple[float, dict[tuple[int, int], _MemoEntry], int, int, bool] | None:
+    """Exact forward route with subset dominance. None asks the caller to use the plain DP."""
+    stop = np.zeros(1, dtype=np.int8)
+    timer = None
+    if deadline is not None:
+        delay = max(0.0, float(deadline) - time.perf_counter())
+
+        def _trip(flag=stop) -> None:
+            flag[0] = 1
+
+        timer = threading.Timer(delay, _trip)
+        timer.daemon = True
+        timer.start()
+    forced_u = np.full(num_t, -1, dtype=np.int64)
+    for t_idx, u_idx in forced_at.items():
+        if 0 <= t_idx < num_t:
+            forced_u[t_idx] = u_idx
+    try:
+        (
+            found,
+            overflow,
+            best_g,
+            best_from,
+            best_kind,
+            best_batch,
+            best_next,
+            counter,
+            _nlab,
+            lab_pred,
+            lab_kind,
+            lab_batch,
+            lab_next,
+            _lab_t,
+            _lab_mask,
+        ) = _forward_search(
+            flat.delta,
+            flat.mask,
+            flat.span,
+            flat.u_idx,
+            flat.offsets,
+            np.asarray(next_event, dtype=np.int64),
+            np.asarray(lb_sum, dtype=np.float64),
+            forced_u,
+            np.asarray(sorted(forced_at), dtype=np.int64),
+            _pairs_to_array(rf_differ),
+            _pairs_to_array(rf_same),
+            np.uint64(_same_pair_bits(rf_same)),
+            np.uint8(1 if subset_dom else 0),
+            float(CHECKER_TOL["pricing_dp"]),
+            stop,
+            num_t,
+        )
+    except Exception as exc:
+        print(f"[EBRP] forward routing disabled: {exc}", file=sys.stderr, flush=True)
+        return None
+    finally:
+        if timer is not None:
+            timer.cancel()
+    if overflow:
+        return None
+    if not found:
+        return float("inf"), {}, int(counter), 0, bool(stop[0])
+    chain: list[int] = []
+    cursor = int(best_from)
+    while cursor >= 0:
+        chain.append(cursor)
+        cursor = int(lab_pred[cursor])
+    chain.reverse()
+    memo: dict[tuple[int, int], _MemoEntry] = {}
+    t_idx = 0
+    used = 0
+    for label in chain[1:]:
+        kind_i = int(lab_kind[label])
+        next_t = int(lab_next[label])
+        if kind_i == 2:
+            batch = _batch_on_path(ctx, flat, int(lab_batch[label]))
+            memo[(t_idx, used)] = _MemoEntry(float(best_g), "batch", next_t=next_t, batch=batch)
+            used |= batch.item_mask
+            t_idx = next_t
+        else:
+            memo[(t_idx, used)] = _MemoEntry(float(best_g), "idle", next_t=next_t)
+            t_idx = next_t
+    if int(best_kind) == 2:
+        batch = _batch_on_path(ctx, flat, int(best_batch))
+        memo[(t_idx, used)] = _MemoEntry(float(best_g), "batch", next_t=int(best_next), batch=batch)
+    else:
+        memo[(t_idx, used)] = _MemoEntry(float(best_g), "idle", next_t=int(best_next))
+    return float(best_g), memo, int(counter), 0, bool(stop[0])
+
+
+def _compiled_on_flat(
+    ctx: EBRPContext,
+    flat: _FlatRoute,
+    num_t: int,
+    *,
+    deadline: float | None,
+    start_t: int,
+    start_mask: int,
+    forced_at: dict[int, int],
+    sri_terms: tuple[tuple[int, float], ...],
+    rf_differ: tuple[tuple[int, int], ...],
+    rf_same: tuple[tuple[int, int], ...],
+    next_event: list[int],
+    lb_sum: list[float],
+) -> tuple[float, dict[tuple[int, int], _MemoEntry], int, int, bool] | None:
+    global _COMPILED_ROUTE_FAILED
+    if _COMPILED_ROUTE_FAILED or num_t >= (1 << (64 - _ROUTE_SHIFT)) or start_mask.bit_length() > _ROUTE_SHIFT:
+        return None
+    if flat.mask.size and int(flat.mask.max()) >= (1 << _ROUTE_SHIFT):
+        return None
+    for pairs in (rf_differ, rf_same):
+        for a, b in pairs:
+            if a < 0 or b < 0 or a.bit_length() > _ROUTE_SHIFT or b.bit_length() > _ROUTE_SHIFT:
+                return None
+    from numba.typed import Dict
+    from numba import types
+
+    memo_cost = Dict.empty(types.uint64, types.float64)
+    memo_dec = Dict.empty(types.uint64, types.uint64)
+    counter = np.zeros(1, dtype=np.int64)
+    hits = np.zeros(1, dtype=np.int64)
+    timed = np.zeros(1, dtype=np.int8)
+    stop = np.zeros(1, dtype=np.int8)
+    timer = None
+    if deadline is not None:
+        delay = max(0.0, float(deadline) - time.perf_counter())
+
+        def _trip_deadline(flag=stop) -> None:
+            flag[0] = 1
+
+        timer = threading.Timer(delay, _trip_deadline)
+        timer.daemon = True
+        timer.start()
+    forced_u = np.full(num_t, -1, dtype=np.int64)
+    for t_idx, u_idx in forced_at.items():
+        if 0 <= t_idx < num_t:
+            forced_u[t_idx] = u_idx
+    try:
+        if _MASK_DOMINANCE:
+            forwarded = _forward_route(
+                ctx,
+                flat,
+                num_t,
+                deadline=deadline,
+                forced_at=forced_at,
+                rf_differ=rf_differ,
+                rf_same=rf_same,
+                subset_dom=len(sri_terms) == 0,
+                next_event=next_event,
+                lb_sum=lb_sum,
+            )
+            if forwarded is not None:
+                return forwarded
+        cost = _route_search(
+            flat.delta,
+            flat.mask,
+            flat.span,
+            flat.u_idx,
+            flat.offsets,
+            np.asarray(next_event, dtype=np.int64),
+            np.asarray(lb_sum, dtype=np.float64),
+            forced_u,
+            np.asarray(sorted(forced_at), dtype=np.int64),
+            _pairs_to_array(rf_differ),
+            _pairs_to_array(rf_same),
+            np.asarray([m for m, _pi in sri_terms], dtype=np.uint64),
+            np.asarray([pi for _m, pi in sri_terms], dtype=np.float64),
+            float(CHECKER_TOL["pricing_dp"]),
+            stop,
+            int(start_t),
+            np.uint64(start_mask),
+            memo_cost,
+            memo_dec,
+            counter,
+            hits,
+            timed,
+        )
+    except Exception as exc:
+        _COMPILED_ROUTE_FAILED = True
+        print(f"[EBRP] compiled routing disabled: {exc}", file=sys.stderr, flush=True)
+        return None
+    finally:
+        if timer is not None:
+            timer.cancel()
+    memo: dict[tuple[int, int], _MemoEntry] = {}
+    t_idx = start_t
+    used = start_mask
+    n_batch = int(flat.delta.shape[0])
+    for _guard in range(num_t + 1):
+        if t_idx >= num_t:
+            break
+        key = (np.uint64(t_idx) << np.uint64(_ROUTE_SHIFT)) | np.uint64(used)
+        if key not in memo_dec:
+            break
+        dec = int(memo_dec[key])
+        kind_i = dec >> 48
+        next_t = (dec >> 32) & 0xFFFF
+        batch_i = dec & 0xFFFFFFFF
+        if kind_i == 2 and batch_i < n_batch:
+            batch = _batch_on_path(ctx, flat, batch_i)
+            memo[(t_idx, used)] = _MemoEntry(float(cost), "batch", next_t=next_t, batch=batch)
+            used |= batch.item_mask
+            t_idx = next_t
+        elif kind_i == 1:
+            memo[(t_idx, used)] = _MemoEntry(float(cost), "idle", next_t=next_t)
+            t_idx = next_t
+        else:
+            memo[(t_idx, used)] = _MemoEntry(float(cost), "end")
+            break
+    return float(cost), memo, int(counter[0]), int(hits[0]), bool(timed[0])
+
+
 def build_ebrp_contexts(data: ProcessedInstance) -> list[EBRPContext]:
     return [EBRPContext.build(data, m_idx) for m_idx in range(len(data.machines))]
 
@@ -694,8 +2076,12 @@ def solve_subproblem_ebrp(
     # A cached catalog has already discarded nonnegative-delta batches.  It is
     # valid only when no setup is forced.  Rebuild under Y=1 fixes so mandatory
     # batches at the forced setups are present.
+    catalog_sec = 0.0
+    flat_route: _FlatRoute | None = None
+    batches_by_t: list[list[Batch]] | None = None
     if catalog is None or forced_at:
-        catalog = ctx.build_catalog(
+        catalog_t0 = time.perf_counter()
+        flat_route = ctx.score_route_batches(
             data,
             alpha,
             rho_val,
@@ -704,8 +2090,11 @@ def solve_subproblem_ebrp(
             deadline=deadline,
             setup_cost_delta=setup_cost_delta,
             required_setups={(u, t) for t, u in forced_at.items()},
+            forbidden=forbidden,
         )
+        catalog_sec = time.perf_counter() - catalog_t0
         if deadline is not None and time.perf_counter() >= deadline:
+            _add_ebrp_time(catalog_sec, 0.0)
             st.timed_out = True
             st.exact = False
             return SubproblemResult(
@@ -715,11 +2104,15 @@ def solve_subproblem_ebrp(
                 production_cost=0.0,
                 is_optimal=False,
             )
-
-    batches_by_t = _index_batches_by_t(catalog, num_u, num_t, forbidden)
+    else:
+        batches_by_t = _index_batches_by_t(catalog, num_u, num_t, forbidden)
 
     if progress_interval_sec > 0:
-        total_batches = sum(len(bt) for bt in batches_by_t)
+        total_batches = (
+            int(flat_route.delta.shape[0])
+            if flat_route is not None
+            else sum(len(bt) for bt in batches_by_t or [])
+        )
         print(
             f"[EBRP {machine}] search start  pools={len(ctx.pool_specs)}  "
             f"batches={total_batches}  events={len(ctx.event_times)}",
@@ -744,18 +2137,35 @@ def solve_subproblem_ebrp(
             elif val == 1:
                 rf_same.append(pair)
 
-    batch_cost, memo = _solve_routing(
-        batches_by_t,
-        num_t,
-        deadline=deadline,
-        st=st,
-        progress_interval_sec=progress_interval_sec,
-        machine=machine,
-        forced_at=forced_at or None,
-        sri_terms=sri_terms,
-        rf_differ=tuple(rf_differ),
-        rf_same=tuple(rf_same),
-    )
+    route_t0 = time.perf_counter()
+    if flat_route is not None:
+        batch_cost, memo = _route_flat(
+            ctx,
+            flat_route,
+            num_t,
+            deadline=deadline,
+            st=st,
+            progress_interval_sec=progress_interval_sec,
+            machine=machine,
+            forced_at=forced_at or None,
+            sri_terms=sri_terms,
+            rf_differ=tuple(rf_differ),
+            rf_same=tuple(rf_same),
+        )
+    else:
+        batch_cost, memo = _solve_routing(
+            batches_by_t or [],
+            num_t,
+            deadline=deadline,
+            st=st,
+            progress_interval_sec=progress_interval_sec,
+            machine=machine,
+            forced_at=forced_at or None,
+            sri_terms=sri_terms,
+            rf_differ=tuple(rf_differ),
+            rf_same=tuple(rf_same),
+        )
+    _add_ebrp_time(catalog_sec, time.perf_counter() - route_t0)
     if st.timed_out and not math.isfinite(batch_cost):
         batch_cost = math.inf
 

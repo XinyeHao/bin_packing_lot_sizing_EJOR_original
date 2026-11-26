@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import multiprocessing as mp
 import time
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 import gurobipy as gp
 from gurobipy import GRB
@@ -213,6 +213,8 @@ def _price_machine_in_worker(
     use_gurobi_when_no_fixes: bool,
     init_time_limit: float,
     rc_tolerance: float,
+    machine_fixes: dict | None = None,
+    fixes_ready: bool = False,
 ) -> tuple[int, SubproblemResult | None]:
     """在 worker 内对单台机器定价；仅当 RC 显著为负时返回完整列（减小 pickle）。"""
     state = _PRICING_WORKER_STATE
@@ -226,7 +228,8 @@ def _price_machine_in_worker(
     rc_arr = state["rc_arr"]
     assert alpha_flat is not None and rho_arr is not None and beta_arr is not None
     beta = beta_arr[m_idx]
-    machine_fixes = machine_fixed_y(fixed_y, m_idx)
+    if not fixes_ready:
+        machine_fixes = machine_fixed_y(fixed_y, m_idx)
     pricing_mode = state.get("pricing_mode", "ebrp")
     ebrp_force = state.get("ebrp_force", False)
     resolved = _resolve_pricing_mode(data, pricing_mode, ebrp_force=ebrp_force)
@@ -288,6 +291,21 @@ def _execute_pricing_job(
     pricing_time_limit = state["pricing_time_limit"]
     num_i = state["num_i"]
     num_t = state["num_t"]
+
+    if len(job) == 7:
+        m_idx, rc_tolerance, ebrp_limit, machine_fixes, fixed_rf, setup_delta, sri_terms = job
+        state["ebrp_time_limit"] = ebrp_limit
+        state["fixed_rf"] = fixed_rf or {}
+        state["setup_cost_deltas"] = {} if setup_delta is None else {m_idx: setup_delta}
+        state["sri_terms_by_machine"] = {m_idx: sri_terms or ()}
+        return _price_machine_in_worker(
+            m_idx,
+            False,
+            state["pricing_time_limit"],
+            rc_tolerance,
+            machine_fixes=machine_fixes,
+            fixes_ready=True,
+        )
 
     if len(job) == 4:
         m_idx, use_gurobi, init_time_limit, rc_tolerance = job
@@ -353,6 +371,9 @@ class ColumnGenerationSolver:
         max_columns_per_iter: int | None = None,
         skip_cross_check: bool = False,
         sum_rc_stop_threshold: float | None = None,
+        ebrp_contexts=None,
+        pricing_pool: ProcessPoolExecutor | None = None,
+        pricing_shared=None,
     ) -> None:
         self.data = data
         self.max_iterations = max_iterations
@@ -391,10 +412,14 @@ class ColumnGenerationSolver:
         )
         self._pricing_iter = 0
         resolved = _resolve_pricing_mode(data, self.pricing_mode, ebrp_force=self.ebrp_force)
-        self._ebrp_contexts = (
-            build_ebrp_contexts(data)
-            if resolved in ("ebrp", "ebrp_heuristic") else None
-        )
+        self._external_pool = pricing_pool
+        self._pricing_shared = pricing_shared
+        if ebrp_contexts is not None:
+            self._ebrp_contexts = ebrp_contexts
+        elif resolved in ("ebrp", "ebrp_heuristic"):
+            self._ebrp_contexts = build_ebrp_contexts(data)
+        else:
+            self._ebrp_contexts = None
         self._ebrp_progress_sec = (
             progress_interval_sec or DEFAULT_PROGRESS_INTERVAL_SEC
             if verbose
@@ -728,19 +753,26 @@ class ColumnGenerationSolver:
     def _column_prod_coeffs(self, col: ScheduleColumn) -> list[tuple[int, int, float]]:
         """返回列对完工流平衡的 (i_idx, arrival_t_idx, qty)。"""
         coeffs: list[tuple[int, int, float]] = []
+        num_t = len(self.data.periods)
+        use_im = self._uses_im_flow()
+        span_at_start: dict[int, int] = {}
         for (item_name, start_period), qty in col.x.items():
             if qty <= 0:
                 continue
             i_idx = self.data.cured_index[item_name]
-            if self._uses_im_flow():
-                arr_t = self._column_arrival_t_idx(col, item_name, start_period)
+            if use_im:
+                span = span_at_start.get(start_period)
+                if span is None:
+                    span = self._batch_span_at_start(col, start_period)
+                    span_at_start[start_period] = span
+                arr_t = (start_period - 1) + span - 1
+                if not (0 <= arr_t < num_t):
+                    continue
             else:
-                prod_t = start_period - 1
-                arr_t = prod_t + self._item_leads[i_idx]
-                if not (0 <= arr_t < len(self.data.periods)):
-                    arr_t = None
-            if arr_t is not None:
-                coeffs.append((i_idx, arr_t, float(qty)))
+                arr_t = (start_period - 1) + self._item_leads[i_idx]
+                if not (0 <= arr_t < num_t):
+                    continue
+            coeffs.append((i_idx, arr_t, float(qty)))
         return coeffs
 
     def _get_column_contrib_to_tau(self, col: ScheduleColumn, tau: int, I: list[int]) -> float:
@@ -921,28 +953,51 @@ class ColumnGenerationSolver:
                 f"cols={self._total_columns()}  {rc_txt}"
             )
 
+        machines = range(len(self.data.machines))
+
+        def _one(m_idx: int) -> tuple[int, SubproblemResult]:
+            return self._price_one_machine(
+                m_idx,
+                alpha,
+                rho,
+                betas[m_idx],
+                use_gurobi_when_no_fixes=use_gurobi_when_no_fixes,
+                init_time_limit=init_tl,
+            )
+
         with heartbeat_while(
             f"CG:{self.data.raw.name}",
             _pricing_status,
             interval_sec=self._progress.interval_sec,
             enabled=self._progress.enabled,
         ):
+            parallel = (
+                len(self.data.machines) > 1
+                and self.skip_cross_check
+                and _resolve_pricing_mode(
+                    self.data, self.pricing_mode, ebrp_force=self.ebrp_force
+                ) == "ebrp"
+            )
             if use_shared_duals and self._alpha_flat is not None:
                 if not duals_preloaded:
                     self._write_pricing_duals(alpha, rho, betas)
                 self._bind_pricing_worker_state()
+                if parallel:
+                    # Compiled routing releases the GIL, so the machines overlap.
+                    with ThreadPoolExecutor(max_workers=len(self.data.machines)) as pool:
+                        return list(
+                            pool.map(
+                                lambda m_idx: _price_machine_in_worker(
+                                    m_idx, use_gurobi_when_no_fixes, init_tl, self.rc_tolerance
+                                ),
+                                machines,
+                            )
+                        )
                 return _execute_pricing_round((use_gurobi_when_no_fixes, init_tl, self.rc_tolerance))
-            return [
-                self._price_one_machine(
-                    m_idx,
-                    alpha,
-                    rho,
-                    betas[m_idx],
-                    use_gurobi_when_no_fixes=use_gurobi_when_no_fixes,
-                    init_time_limit=init_tl,
-                )
-                for m_idx in range(len(self.data.machines))
-            ]
+            if parallel:
+                with ThreadPoolExecutor(max_workers=len(self.data.machines)) as pool:
+                    return list(pool.map(_one, machines))
+            return list(map(_one, machines))
 
     def _price_machines(
         self,
@@ -956,9 +1011,10 @@ class ColumnGenerationSolver:
         use_shared_duals: bool = False,
         duals_preloaded: bool = False,
     ) -> list[tuple[int, SubproblemResult]]:
-        # SRI duals are path-dependent.  Keep this first implementation
-        # in-process so worker pricing can never omit the SRI contribution.
-        if self.fixed_rf or self.sri_cuts or self.pricing_inprocess or executor is None:
+        # Machine subproblems are independent.  Ryan–Foster fixes, setup-cost
+        # deltas and SRI terms travel with each job, so they do not force a
+        # serial solve.
+        if self.pricing_inprocess or executor is None:
             return self._price_machines_inprocess(
                 alpha,
                 rho,
@@ -993,14 +1049,21 @@ class ColumnGenerationSolver:
     ) -> list[tuple[int, SubproblemResult]]:
         if use_shared_duals and not duals_preloaded:
             self._write_pricing_duals(alpha, rho, betas)
-        init_tl = self.init_time_limit if init_time_limit is None else init_time_limit
-        if use_shared_duals and self.pricing_batch:
-            return list(
-                executor.map(
-                    _execute_pricing_round,
-                    [(use_gurobi_when_no_fixes, init_tl, self.rc_tolerance)],
+        if use_shared_duals:
+            jobs = []
+            for m_idx in range(len(self.data.machines)):
+                jobs.append(
+                    (
+                        m_idx,
+                        self.rc_tolerance,
+                        self.ebrp_time_limit,
+                        machine_fixed_y(self.fixed_y, m_idx) or None,
+                        dict(self.fixed_rf),
+                        self._setup_cost_deltas.get(m_idx),
+                        self._sri_pricing_terms(m_idx),
+                    )
                 )
-            )[0]
+            return list(executor.map(_execute_pricing_job, jobs))
         jobs = self._build_pricing_jobs(
             alpha,
             rho,
@@ -1319,33 +1382,21 @@ class ColumnGenerationSolver:
 
         model.setObjective(obj, GRB.MINIMIZE)
 
-        # 直接库存平衡
+        # 直接库存平衡。每列的完工系数只算一次，再散到对应 (工件, 时刻)。
+        prod_in = [[gp.LinExpr() for _ in range(num_t)] for _ in range(num_i)]
+        for machine in data.machines:
+            for col_idx, col in enumerate(self.columns[machine]):
+                q_var = q_vars[machine][col_idx]
+                for ci, arr_t, qty in self._column_prod_coeffs(col):
+                    prod_in[ci][arr_t] += qty * q_var
         flow_items: dict[tuple[int, int], gp.Constr] = {}
         for i_idx in range(num_i):
-            item_name = data.cured_items[i_idx]
             for t_idx in range(num_t):
                 prev_inv = 0 if t_idx == 0 else s_plus[i_idx, t_idx - 1]
                 prev_bo = 0 if t_idx == 0 else s_minus[i_idx, t_idx - 1]
-                prod_in = gp.LinExpr()
-                if self._uses_im_flow():
-                    for machine in data.machines:
-                        for col_idx, col in enumerate(self.columns[machine]):
-                            for ci, arr_t, qty in self._column_prod_coeffs(col):
-                                if ci == i_idx and arr_t == t_idx:
-                                    prod_in += qty * q_vars[machine][col_idx]
-                else:
-                    lead = int(data.l_ti[i_idx])
-                    prod_t = t_idx - lead
-                    if prod_t >= 0:
-                        period = data.periods[prod_t]
-                        for machine in data.machines:
-                            for col_idx, col in enumerate(self.columns[machine]):
-                                qty = col.x.get((item_name, period), 0)
-                                if qty:
-                                    prod_in += qty * q_vars[machine][col_idx]
                 dem = data.d_it[i_idx][t_idx] if hasattr(data, "d_it") and data.d_it else 0
                 flow_items[(i_idx, t_idx)] = model.addConstr(
-                    prev_inv - prev_bo + prod_in
+                    prev_inv - prev_bo + prod_in[i_idx][t_idx]
                     == dem - dem * r_vars[i_idx] + s_plus[i_idx, t_idx] - s_minus[i_idx, t_idx]
                 )
 
@@ -1663,7 +1714,14 @@ class ColumnGenerationSolver:
             f"init={init_pricing}  iter={loop_pricing}"
         )
 
-        if self.pricing_inprocess:
+        if self._external_pool is not None and self._pricing_shared is not None:
+            self._alpha_flat, self._rho_arr, self._beta_arr, self._rc_arr = self._pricing_shared
+            self.initialize_columns(self._external_pool)
+            self._init_master(relaxed=True)
+            iteration_rcs, last_valid_lb = self._cg_main_loop(
+                self._external_pool, len(self.data.machines), run_start, use_shared_duals
+            )
+        elif self.pricing_inprocess:
             self._bind_pricing_worker_state()
             self.initialize_columns(None)
             self._init_master(relaxed=True)

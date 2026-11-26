@@ -6,6 +6,7 @@ import gc
 import heapq
 import math
 import time
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 
 from common.data_models import ProcessedInstance, ScheduleColumn, SolutionResult
@@ -44,10 +45,12 @@ from model_and_algo.branch_utils import (
 )
 from configuration import CGFO_THRESHOLD_II
 from model_and_algo.cgfo import _build_allowed_setup, _build_fixed_y
-from model_and_algo.column_generation import ColumnGenerationSolver
+from model_and_algo.column_generation import ColumnGenerationSolver, _resolve_pricing_mode
+from model_and_algo.pricing_ebrp import EBRP_TIME, build_ebrp_contexts, reset_ebrp_time
 from model_and_algo.im_model import solve_im
 
 INT_TOL = 1e-5
+CGFO_REFRESH_NODES = 30
 FRAC_TOL = 1e-4
 
 
@@ -201,6 +204,11 @@ class BranchAndPriceSolver:
         if strict_cg_node_time_limit <= 0:
             raise ValueError("strict_cg_node_time_limit must be positive")
         self.strict_cg_node_time_limit = float(strict_cg_node_time_limit)
+        self.cgfo_refresh_nodes = CGFO_REFRESH_NODES
+        self._pricing_pool: ProcessPoolExecutor | None = None
+        self._pricing_shared = None
+        self._ebrp_contexts = None
+        self._nodes_at_last_cgfo = 0
         self._strict_unresolved_cg = False
         self.ml_sb_refine_k = ML_SB_REFINE_K
         self.ml_sb_child_tlim = ML_SB_CHILD_TLIM
@@ -270,6 +278,9 @@ class BranchAndPriceSolver:
             kwargs["ebrp_time_limit"] = min(float(kwargs.get("ebrp_time_limit") or 30.0), 3.0)
         else:
             max_iters = min(max_iters, self.cg_max_iterations)
+        if self._pricing_pool is not None:
+            kwargs["pricing_inprocess"] = False
+            kwargs["pricing_batch"] = False
         cg = ColumnGenerationSolver(
             self.data,
             max_iterations=max_iters,
@@ -281,6 +292,9 @@ class BranchAndPriceSolver:
             inherited_columns=inherited,
             inherited_sri_cuts=node.inherited_sri_cuts,
             use_gurobi_init=use_gurobi_init,
+            ebrp_contexts=self._ebrp_contexts,
+            pricing_pool=self._pricing_pool,
+            pricing_shared=self._pricing_shared,
             **kwargs,
         )
         cg.incumbent = incumbent
@@ -306,6 +320,9 @@ class BranchAndPriceSolver:
         kwargs["ebrp_time_limit"] = min(ebrp_cap, max(0.5, tlim * 0.4))
         max_iters = min(40, self.cg_max_iterations)
         try:
+            if self._pricing_pool is not None:
+                kwargs["pricing_inprocess"] = False
+                kwargs["pricing_batch"] = False
             child = ColumnGenerationSolver(
                 self.data,
                 max_iterations=max_iters,
@@ -316,6 +333,9 @@ class BranchAndPriceSolver:
                 fixed_rf=fixed_rf or {},
                 inherited_columns=inherited,
                 use_gurobi_init=False,
+                ebrp_contexts=self._ebrp_contexts,
+                pricing_pool=self._pricing_pool,
+                pricing_shared=self._pricing_shared,
                 **kwargs,
             )
             child.incumbent = incumbent
@@ -495,14 +515,17 @@ class BranchAndPriceSolver:
         """CGFO：由分数列支撑构造允许 setup，其余 Y=0，再解受限 IM。"""
         if budget <= 1.0:
             return incumbent, None
+        cgfo_t0 = time.perf_counter()
         selected = cg.get_selected_columns(threshold=CGFO_THRESHOLD_II)
         allowed = _build_allowed_setup(self.data, selected)
         if not allowed:
+            self._time_cgfo += time.perf_counter() - cgfo_t0
             return incumbent, None
         cgfo_fy = _build_fixed_y(self.data, allowed)
         if merge_fixed_y:
             cgfo_fy = {**cgfo_fy, **merge_fixed_y}
         new_ub, new_fy = self._try_incumbent(cgfo_fy, incumbent, budget)
+        self._time_cgfo += time.perf_counter() - cgfo_t0
         if new_ub is not None and (incumbent is None or new_ub < incumbent - INT_TOL):
             return new_ub, new_fy
         return incumbent, None
@@ -877,7 +900,35 @@ class BranchAndPriceSolver:
         return bool(dfs_stack or lazy_heap)
 
     def solve(self) -> BranchAndPriceResult:
+        try:
+            return self._solve_impl()
+        finally:
+            self._stop_pricing_pool()
+
+    def _start_pricing_pool(self) -> None:
+        """Cache machine catalogs once. Machine subproblems run on threads."""
+        if self._ebrp_contexts is not None:
+            return
+        mode = str(self.cg_kwargs.get("pricing_mode", "ebrp")).lower()
+        force = bool(self.cg_kwargs.get("ebrp_force", False)) or mode == "ebrp_force"
+        if _resolve_pricing_mode(self.data, mode, ebrp_force=force) != "ebrp":
+            return
+        self._ebrp_contexts = build_ebrp_contexts(self.data)
+
+    def _stop_pricing_pool(self) -> None:
+        pool = self._pricing_pool
+        self._pricing_pool = None
+        if pool is not None:
+            pool.shutdown(wait=True)
+
+    def _solve_impl(self) -> BranchAndPriceResult:
         start = time.perf_counter()
+        self._time_cg = 0.0
+        self._time_master = 0.0
+        self._time_pricing = 0.0
+        self._time_cgfo = 0.0
+        reset_ebrp_time()
+        self._start_pricing_pool()
         deadline = start + self.time_limit if self.time_limit else None
         root = BranchNode(node_id=0, lb_estimate=float("-inf"))
 
@@ -972,6 +1023,10 @@ class BranchAndPriceSolver:
             node_t0 = time.perf_counter()
             cg = self._run_node_cg(node, time_limit=node_cg_limit, incumbent=incumbent)
             cg_sec = time.perf_counter() - node_t0
+            self._time_cg += cg_sec
+            for detail in cg.iteration_time_detail:
+                self._time_master += float(detail.get("master", 0.0))
+                self._time_pricing += float(detail.get("pricing", 0.0))
 
             if getattr(cg, "converged", False) and node.cg_incomplete:
                 node.cg_incomplete = False
@@ -1212,6 +1267,7 @@ class BranchAndPriceSolver:
                             f"    [CGFO] incumbent={incumbent:.2f} (budget={cgfo_budget:.0f}s)",
                             flush=True,
                         )
+                self._nodes_at_last_cgfo = nodes_explored
                 if (
                     getattr(cg, "converged", False)
                     and incumbent is not None
@@ -1244,10 +1300,16 @@ class BranchAndPriceSolver:
                     gap_stopped = True
                     continue
 
-            # 非根节点：有剩余时间则再试 CGFO
-            if node.node_id != 0 and deadline is not None:
+            # 根节点之后每处理 30 个节点再求一次上界。CGFO 用的是当前节点的分数列，
+            # 分支一批之后这组列才变；下界比例在树的前几层跳得快、后面又几乎不动。
+            if (
+                node.node_id != 0
+                and deadline is not None
+                and nodes_explored - self._nodes_at_last_cgfo >= self.cgfo_refresh_nodes
+            ):
                 remaining = deadline - time.perf_counter()
                 if remaining > 20.0:
+                    self._nodes_at_last_cgfo = nodes_explored
                     cgfo_budget = min(20.0, remaining * 0.08)
                     new_ub, new_fy = self._try_cgfo(
                         cg, incumbent, cgfo_budget, merge_fixed_y=node.fixed_y
@@ -1255,8 +1317,9 @@ class BranchAndPriceSolver:
                     if new_fy is not None and new_ub is not None:
                         incumbent, best_fixed_y = new_ub, new_fy
                         print(
-                            f"    [CGFO node] incumbent={incumbent:.2f} "
-                            f"(depth={node.depth}, budget={cgfo_budget:.0f}s)",
+                            f"    [CGFO refresh] incumbent={incumbent:.2f} "
+                            f"(nodes={nodes_explored}, depth={node.depth}, "
+                            f"budget={cgfo_budget:.0f}s)",
                             flush=True,
                         )
 
@@ -1442,6 +1505,17 @@ class BranchAndPriceSolver:
             status = "invalid_bound"
             tree_lb = None
 
+        print(
+            "  [time] "
+            f"cg={self._time_cg:.1f}s "
+            f"master={self._time_master:.1f}s "
+            f"pricing={self._time_pricing:.1f}s "
+            f"cgfo={self._time_cgfo:.1f}s "
+            f"ebrp_catalog={EBRP_TIME['catalog']:.1f}s "
+            f"ebrp_route={EBRP_TIME['route']:.1f}s "
+            f"pricing_calls={int(EBRP_TIME['calls'])}",
+            flush=True,
+        )
         return BranchAndPriceResult(
             status=status,
             objective=incumbent,
