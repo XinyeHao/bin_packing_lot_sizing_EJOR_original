@@ -3,7 +3,7 @@
 四阶段：
   1. 静态子集枚举 — 每机首轮，穷举容量可行物料子集（与对偶无关）
   2. 批目录生成   — 每轮 CG，计算 δ + Pareto 支配剪枝
-  3. DP 路由      — 记忆化 DP，不做前瞻剪枝
+  3. DP 路由      — 时间 DAG 下界 + DSSR，必要时回退完整记忆化 DP
   4. 解码         — 从 memo 回溯还原 X/Y 赋值
 """
 
@@ -23,18 +23,21 @@ from common.data_models import ProcessedInstance
 from configuration import CHECKER_TOL, DEFAULT_PROGRESS_INTERVAL_SEC
 from model_and_algo.subproblem_common import SubproblemResult, scale_lengths
 from model_and_algo.im_model import _item_start_feasible
+from model_and_algo.pricing_route_dssr import solve_dssr
 
 ActionKind = Literal["end", "idle", "batch"]
 
 _EBRP_TIME_LOCK = threading.Lock()
-EBRP_TIME = {"catalog": 0.0, "route": 0.0, "calls": 0}
+EBRP_TIME = {
+    "catalog": 0.0, "route": 0.0, "calls": 0,
+    "dssr_calls": 0, "dssr_rounds": 0, "dssr_nodes": 0, "dssr_fallbacks": 0,
+}
 
 
 def reset_ebrp_time() -> None:
     with _EBRP_TIME_LOCK:
-        EBRP_TIME["catalog"] = 0.0
-        EBRP_TIME["route"] = 0.0
-        EBRP_TIME["calls"] = 0
+        for key in EBRP_TIME:
+            EBRP_TIME[key] = 0
 
 
 def _add_ebrp_time(catalog_sec: float, route_sec: float) -> None:
@@ -67,6 +70,8 @@ class EBRPStats:
     bound_prunes: int = 0
     timed_out: bool = False
     exact: bool = True
+    dssr_rounds: int = 0
+    critical_items: int = 0
 
 
 @dataclass
@@ -441,6 +446,7 @@ class EBRPContext:
         setup_cost_delta: list[list[float]] | None = None,
         required_setups: set[tuple[int, int]] | None = None,
         forbidden: set[tuple[int, int]] | None = None,
+        preserve_all: bool = False,
     ) -> "_FlatRoute":
         """Score every cached subset once, then Pareto-prune and delta-sort each time."""
         del data
@@ -464,6 +470,10 @@ class EBRPContext:
                 spec_p[s] += setup_cost_delta[u_idx][t_idx]
         skip = np.zeros(nspec, dtype=np.uint8)
         keep_all = np.zeros(nspec, dtype=np.uint8)
+        # RF-same obligations may need a positive-cost companion batch.
+        # Mandatory setups may invalidate ordinary subset dominance, too.
+        if preserve_all:
+            keep_all[:] = 1
         if forbidden:
             for s in range(nspec):
                 if (int(pack["u"][s]), int(pack["t"][s])) in forbidden:
@@ -506,7 +516,8 @@ class EBRPContext:
             mask = mask_b[a:b]
             nitem = n_b[a:b]
             order = np.lexsort((np.arange(b - a), delta, nitem, span))
-            keep = _pareto_keep_numba(order, span, delta, mask)
+            keep = (np.arange(b - a, dtype=np.int64) if preserve_all
+                    else _pareto_keep_numba(order, span, delta, mask))
             delta_k = delta[keep]
             delta_order = np.argsort(delta_k, kind="mergesort")
             pieces[0].append(delta_k[delta_order])
@@ -603,6 +614,47 @@ class _FlatRoute:
     spec_idx: np.ndarray
     sub_idx: np.ndarray
     offsets: np.ndarray
+
+
+@njit(cache=True, nogil=True)
+def _time_dag_bound(deltas, spans, u_idxs, offsets, forced_u, num_t):
+    """Time-feasible shortest path, relaxing only item/RF restrictions."""
+    values = np.zeros(num_t + 1, dtype=np.float64)
+    next_forced = np.full(num_t, num_t, dtype=np.int64)
+    nxt = num_t
+    for t in range(num_t - 1, -1, -1):
+        next_forced[t] = nxt
+        if forced_u[t] >= 0:
+            nxt = t
+    for t in range(num_t - 1, -1, -1):
+        required = forced_u[t]
+        best = np.inf if required >= 0 else values[t + 1]
+        for b in range(offsets[t], offsets[t + 1]):
+            if required >= 0 and u_idxs[b] != required:
+                continue
+            end = t + spans[b]
+            if end > num_t or next_forced[t] < end:
+                continue
+            candidate = deltas[b] + values[end]
+            if candidate < best:
+                best = candidate
+        values[t] = best
+    return values
+
+
+def _routing_lower_bounds(deltas, spans, u_idxs, offsets, num_t, forced_at, sri_terms=()):
+    forced_u = np.full(num_t, -1, dtype=np.int64)
+    for t, u in (forced_at or {}).items():
+        if 0 <= t < num_t:
+            forced_u[t] = u
+    values = _time_dag_bound(deltas, spans, u_idxs, offsets, forced_u, num_t)
+    # Normally SRI multipliers of <= rows are nonpositive and their routing
+    # increments are nonnegative. This floor also covers positive multipliers
+    # conservatively, including a possibly negative immediate transition.
+    sri_floor = sum(min(0.0, -pi) * (int(mask).bit_count() // 2) for mask, pi in sri_terms)
+    if sri_floor:
+        values = values + sri_floor
+    return values.tolist()
 
 
 @njit(cache=True)
@@ -1259,21 +1311,16 @@ def _solve_routing(
                     return False
         return True
 
-    # 预计算乐观下界：lb_sum[t] = sum_{t'>=t} min(0, min_delta_at_t')
-    # 忽略物料冲突，是真实未来成本的下界（更负 = 更乐观）
-    # 注意：若某时刻所有批的 delta >= 0，最优选择是空闲（成本 0）
-    lb_sum = [0.0] * (_num_t + 1)
-    for t in range(_num_t - 1, -1, -1):
-        batches = _batches_by_t[t]
-        best_at_t = 0.0
-        if t in _forced_at:
-            u_req = _forced_at[t]
-            forced_deltas = [b.delta for b in batches if b.u_idx == u_req]
-            best_at_t = min(forced_deltas) if forced_deltas else 0.0
-        elif batches and batches[0].delta < 0.0:
-            best_at_t = batches[0].delta  # batches 已按 delta 升序排列
-        lb_sum[t] = best_at_t + lb_sum[t + 1]
-    lb_sum[_num_t] = 0.0
+    flat_batches = [b for batches in _batches_by_t for b in batches]
+    offsets = np.zeros(_num_t + 1, dtype=np.int64)
+    for t in range(_num_t):
+        offsets[t + 1] = offsets[t] + len(_batches_by_t[t])
+    lb_sum = _routing_lower_bounds(
+        np.asarray([b.delta for b in flat_batches], dtype=np.float64),
+        np.asarray([b.span for b in flat_batches], dtype=np.int64),
+        np.asarray([b.u_idx for b in flat_batches], dtype=np.int64),
+        offsets, _num_t, _forced_at, _sri_terms,
+    )
 
     if progress_interval_sec <= 0:
         compiled = _try_compiled_route(
@@ -1512,19 +1559,6 @@ def _route_flat(
     rf_same: tuple[tuple[int, int], ...],
 ) -> tuple[float, dict[tuple[int, int], _MemoEntry]]:
     """Route on the array catalog. Batch objects are built only if the compiled search cannot run."""
-    if progress_interval_sec > 0:
-        return _solve_routing(
-            _materialize_route(ctx, flat),
-            num_t,
-            deadline=deadline,
-            st=st,
-            progress_interval_sec=progress_interval_sec,
-            machine=machine,
-            forced_at=forced_at,
-            sri_terms=sri_terms,
-            rf_differ=rf_differ,
-            rf_same=rf_same,
-        )
     forced = forced_at or {}
     next_event = [num_t] * (num_t + 1)
     nxt = num_t
@@ -1532,22 +1566,51 @@ def _route_flat(
         next_event[t_idx] = nxt
         if int(flat.offsets[t_idx + 1]) > int(flat.offsets[t_idx]):
             nxt = t_idx
-    lb_sum = [0.0] * (num_t + 1)
-    for t_idx in range(num_t - 1, -1, -1):
-        begin = int(flat.offsets[t_idx])
-        end = int(flat.offsets[t_idx + 1])
-        best_at_t = 0.0
-        if t_idx in forced:
-            u_req = forced[t_idx]
-            forced_deltas = [
-                float(flat.delta[i])
-                for i in range(begin, end)
-                if int(flat.u_idx[i]) == u_req
-            ]
-            best_at_t = min(forced_deltas) if forced_deltas else 0.0
-        elif end > begin and float(flat.delta[begin]) < 0.0:
-            best_at_t = float(flat.delta[begin])
-        lb_sum[t_idx] = best_at_t + lb_sum[t_idx + 1]
+    lb_sum = _routing_lower_bounds(
+        flat.delta, flat.span, flat.u_idx, flat.offsets, num_t, forced, sri_terms,
+    )
+
+    # SRI increments depend on the complete used set; retain the full-state
+    # exact oracle there. RF endpoints, by contrast, are tracked by DSSR.
+    if not sri_terms:
+        result = solve_dssr(
+            flat.delta, flat.mask, flat.span, flat.u_idx, flat.offsets, num_t,
+            forced_at=forced, rf_differ=rf_differ, rf_same=rf_same,
+            lower_bounds=lb_sum, deadline=deadline,
+        )
+        with _EBRP_TIME_LOCK:
+            EBRP_TIME["dssr_calls"] += 1
+            if result is None:
+                EBRP_TIME["dssr_fallbacks"] += 1
+            else:
+                EBRP_TIME["dssr_rounds"] += result.rounds
+                EBRP_TIME["dssr_nodes"] += result.nodes
+        if result is not None:
+            st.nodes_expanded += result.nodes
+            st.dssr_rounds += result.rounds
+            st.critical_items = max(st.critical_items, result.critical_count)
+            st.exact = st.exact and result.exact
+            st.timed_out = st.timed_out or result.timed_out
+            memo: dict[tuple[int, int], _MemoEntry] = {}
+            t_idx = used = 0
+            for batch_i in result.path:
+                batch = _batch_on_path(ctx, flat, batch_i)
+                if batch.t_idx > t_idx:
+                    memo[t_idx, used] = _MemoEntry(result.cost, "idle", next_t=batch.t_idx)
+                    t_idx = batch.t_idx
+                end = t_idx + batch.span
+                memo[t_idx, used] = _MemoEntry(result.cost, "batch", next_t=end, batch=batch)
+                used |= batch.item_mask
+                t_idx = end
+            memo[t_idx, used] = _MemoEntry(0.0, "end")
+            return result.cost, memo
+
+    if progress_interval_sec > 0:
+        return _solve_routing(
+            _materialize_route(ctx, flat), num_t, deadline=deadline, st=st,
+            progress_interval_sec=progress_interval_sec, machine=machine,
+            forced_at=forced, sri_terms=sri_terms, rf_differ=rf_differ, rf_same=rf_same,
+        )
 
     compiled = _compiled_on_flat(
         ctx,
@@ -2079,7 +2142,7 @@ def solve_subproblem_ebrp(
     catalog_sec = 0.0
     flat_route: _FlatRoute | None = None
     batches_by_t: list[list[Batch]] | None = None
-    if catalog is None or forced_at:
+    if catalog is None or forced_at or fixed_rf:
         catalog_t0 = time.perf_counter()
         flat_route = ctx.score_route_batches(
             data,
@@ -2091,6 +2154,7 @@ def solve_subproblem_ebrp(
             setup_cost_delta=setup_cost_delta,
             required_setups={(u, t) for t, u in forced_at.items()},
             forbidden=forbidden,
+            preserve_all=bool(forced_at or any(val == 1 for val in (fixed_rf or {}).values())),
         )
         catalog_sec = time.perf_counter() - catalog_t0
         if deadline is not None and time.perf_counter() >= deadline:
@@ -2173,7 +2237,7 @@ def solve_subproblem_ebrp(
     x, y, production_cost = _decode_plan(memo, 0, 0, num_t, p_cum)
 
     # Gurobi 交叉验证（仅在 EBRP 认为无负 RC 列时，兜底防止实现瑕疵）
-    if not skip_cross_check and not sri_terms and reduced_cost > -1e-3 and not fixed_y and not st.timed_out:
+    if not skip_cross_check and not sri_terms and reduced_cost > -1e-3 and not fixed_y and not fixed_rf and not st.timed_out:
         try:
             from model_and_algo.pricing_im_gurobi import solve_subproblem_im_gurobi
 

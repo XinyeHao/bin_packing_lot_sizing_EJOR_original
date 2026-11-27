@@ -2319,12 +2319,15 @@ class ColumnGenerationSolver:
         self,
         time_limit: float = 30.0,
         mip_gap: float = 0.01,
+        threads: int | None = None,
     ) -> float | None:
         """Solve current restricted master with binary Q → valid UB from column pool.
 
         Temporarily flips Q to binary, solves the MIP, then restores continuous Q
         and re-solves the LP so subsequent dual/implied queries stay valid.
         """
+        self.last_integer_solution = None
+        self.last_irmp_diagnostics = None
         if self._model is None or self._artifacts is None:
             return None
         model = self._model
@@ -2332,6 +2335,8 @@ class ColumnGenerationSolver:
         old_tl = model.Params.TimeLimit
         old_gap = model.Params.MIPGap
         old_method = model.Params.Method
+        old_threads = model.Params.Threads
+        old_output = model.Params.OutputFlag
         changed: list[tuple[gp.Var, str]] = []
         for qlist in q_vars.values():
             for q in qlist:
@@ -2341,10 +2346,35 @@ class ColumnGenerationSolver:
         model.Params.MIPGap = max(0.0, float(mip_gap))
         model.Params.Method = -1  # automatic for MIP
         model.Params.OutputFlag = 0
+        if threads is not None:
+            model.Params.Threads = threads
         obj: float | None = None
         try:
             model.optimize()
+            # Read MIP attributes now: restoring the LP overwrites them.
+            status_names = {
+                GRB.OPTIMAL: "optimal", GRB.TIME_LIMIT: "time_limit",
+                GRB.INFEASIBLE: "infeasible", GRB.INF_OR_UNBD: "infeasible_or_unbounded",
+                GRB.INTERRUPTED: "interrupted", GRB.SUBOPTIMAL: "suboptimal",
+            }
+            def finite(value):
+                return float(value) if math.isfinite(value) else None
+            gap = finite(model.MIPGap) if model.SolCount > 0 else None
+            self.last_irmp_diagnostics = {
+                "status_code": int(model.Status),
+                "status": status_names.get(model.Status, f"status_{model.Status}"),
+                "objective": finite(model.ObjVal) if model.SolCount > 0 else None,
+                "bound": finite(model.ObjBound),
+                "mip_gap": gap, "mip_gap_pct": 100 * gap if gap is not None else None,
+                "mip_runtime_sec": float(model.Runtime), "mip_nodes": float(model.NodeCount),
+                "solution_count": int(model.SolCount),
+                "time_limit_sec": float(model.Params.TimeLimit),
+                "target_mip_gap": float(model.Params.MIPGap),
+                "columns": sum(len(qs) for qs in q_vars.values()),
+            }
             if model.SolCount > 0 and model.ObjVal is not None:
+                from model_and_algo.primal_heuristics import snapshot_integer_master
+                self.last_integer_solution = snapshot_integer_master(self)
                 obj = float(model.ObjVal)
         finally:
             for q, vt in changed:
@@ -2352,8 +2382,11 @@ class ColumnGenerationSolver:
             model.Params.TimeLimit = old_tl
             model.Params.MIPGap = old_gap
             model.Params.Method = old_method
+            model.Params.Threads = old_threads
+            model.Params.OutputFlag = old_output
             # Must restore a continuous LP with duals for branching features.
-            self.ensure_master_lp()
+            if not self.ensure_master_lp():
+                raise RuntimeError("Failed to restore the master LP after IRMP")
         return obj
 
     def get_selected_columns(self, threshold: float = 0.0) -> dict[str, list[ScheduleColumn]]:

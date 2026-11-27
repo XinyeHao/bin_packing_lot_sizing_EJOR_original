@@ -53,6 +53,31 @@ python checkers/run_checks.py --instance demo_small --cg
 统一入口：`model_and_algo/solver.py` → `solve(...)`。  
 BPC 更细参数请直接构造 `BranchAndPriceSolver`（见实验脚本）。
 
+当前上界策略默认为 `upper_bound_strategy="adaptive"`：
+根节点先运行至多 5 秒的 IRMP，再运行至多 30 秒的 CGFO。
+IRMP 的完整日程用于 CGFO 的 MIP 初始解，其开工位置并入 LP 正值列的允许集合。
+`upper_bound_strategy="cgfo"` 可用于直接 CGFO 的对照实验。
+树中上界连续 120 个节点未改善时，尝试至多 10 秒的两台机器局部修复。
+树中不调用 IRMP；节点 LP 自然得到的整数解仍可直接更新上界。
+连续无改善会增加调用间隔。所有新上界均保存完整整数日程并经过原模型检查，
+可从 `res.best_solution`、`res.primal_history` 和 `res.primal_stats` 读取。
+修复模型的固定条件只用于生成可行解，不参与 BP 下界或定价证书。
+CGFO 的列支持开工集合参考 [Hao 等（2022）](https://doi.org/10.1016/j.ejor.2022.03.012)；
+按改善效果控制启发式调用频率的思路可参考
+[Maher 和 Rönnberg（2023）](https://doi.org/10.1007/s12532-023-00240-w)。
+
+完整中、大规模测试（各 15 例，时限分别为 1800、3600 秒，目标 gap 1%）：
+
+```bash
+python experiments/run_adaptive_ub_suite.py --workers 1 --threads 16 --output result/diagnostics/root_irmp_cgfo_serial_v5
+python experiments/analyze_adaptive_ub_suite.py --output result/diagnostics/root_irmp_cgfo_serial_v5 --audit
+```
+
+算例按中规模、大规模的种子顺序逐个求解；默认使用本机全部求解器线程。
+上述命令将结果保存在 `result/diagnostics/root_irmp_cgfo_serial_v5/`，包括逐例日志、日程、代码快照、
+上界改善历史和汇总对照表。使用 `--resume` 可续跑相同代码及配置下的测试；
+修改算法后应以 `--output` 指定新的结果目录。
+
 ### 3.1 BPC 关键配置
 
 ```python

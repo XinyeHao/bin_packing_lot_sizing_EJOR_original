@@ -315,6 +315,12 @@ def solve_im(
     fixed_y: dict[tuple[int, int, int], int] | None = None,
     method: str = "im_gurobi",
     verbose: bool = False,
+    *,
+    fixed_x: dict[tuple[int, int, int], int] | None = None,
+    mip_start: SolutionResult | None = None,
+    threads: int | None = None,
+    budget_includes_build: bool = False,
+    primal_focus: bool = False,
 ) -> SolutionResult:
     start = time.perf_counter()
     model, vars_bundle = build_im_model(
@@ -324,6 +330,47 @@ def solve_im(
         fixed_y=fixed_y,
         verbose=verbose,
     )
+    if threads is not None:
+        model.Params.Threads = threads
+    if primal_focus:
+        model.Params.MIPFocus = 1
+    for key, value in (fixed_x or {}).items():
+        vars_bundle["X"][key].LB = value
+        vars_bundle["X"][key].UB = value
+    if mip_start is not None:
+        # A complete feasible start includes the common-unload H/Z variables.
+        # Setting only X/Y can leave Gurobi doing substantial repair work.
+        for (i, m, t), var in vars_bundle["X"].items():
+            var.Start = mip_start.packing.get(data.machines[m], {}).get(data.cured_items[i], {}).get(data.periods[t], 0)
+        for (u, m, t), var in vars_bundle["Y"].items():
+            var.Start = mip_start.setup.get(data.machines[m], {}).get(data.configs[u], {}).get(data.periods[t], 0)
+        spans = mip_start.extra.get("span", {})
+        for (u, m, t), var in vars_bundle["L"].items():
+            var.Start = spans.get(data.machines[m], {}).get(data.configs[u], {}).get(data.periods[t], 0)
+        for (u, m, t, ell), var in vars_bundle["H"].items():
+            var.Start = int(spans.get(data.machines[m], {}).get(data.configs[u], {}).get(data.periods[t], 0) == ell)
+        for (i, m, t, ell), var in vars_bundle["Z"].items():
+            machine, item, period = data.machines[m], data.cured_items[i], data.periods[t]
+            config = data.configs[data.config_of_item[i]]
+            var.Start = int(mip_start.packing.get(machine, {}).get(item, {}).get(period, 0) > 0.5
+                            and spans.get(machine, {}).get(config, {}).get(period, 0) == ell)
+        for i, var in vars_bundle["R"].items():
+            var.Start = mip_start.extra.get("scrap", {}).get(data.cured_items[i], 0)
+        for (i, t), var in vars_bundle["S_plus"].items():
+            var.Start = mip_start.inventory.get(data.cured_items[i], {}).get(data.periods[t], 0)
+        for (i, t), var in vars_bundle["S_minus"].items():
+            var.Start = mip_start.backorder.get(data.cured_items[i], {}).get(data.periods[t], 0)
+    if budget_includes_build and time_limit is not None:
+        remaining = time_limit - (time.perf_counter() - start)
+        if remaining <= 0:
+            model.dispose()
+            return SolutionResult(
+                method=method, instance_name=data.raw.name, status="time_limit",
+                objective=None, lower_bound=None, mip_gap=None,
+                runtime_sec=time.perf_counter() - start,
+                extra={"budget_exhausted_during_build": True},
+            )
+        model.Params.TimeLimit = remaining
     model.optimize()
     runtime = time.perf_counter() - start
 

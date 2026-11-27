@@ -43,14 +43,15 @@ from model_and_algo.branch_utils import (
     scrap_fix_feasible,
     wip_fix_feasible,
 )
-from configuration import CGFO_THRESHOLD_II
-from model_and_algo.cgfo import _build_allowed_setup, _build_fixed_y
 from model_and_algo.column_generation import ColumnGenerationSolver, _resolve_pricing_mode
 from model_and_algo.pricing_ebrp import EBRP_TIME, build_ebrp_contexts, reset_ebrp_time
 from model_and_algo.im_model import solve_im
+from model_and_algo.primal_heuristics import (
+    PrimalHeuristicConfig, cgfo_restrictions, lp_setup_support,
+    snapshot_integer_master, validate_primal,
+)
 
 INT_TOL = 1e-5
-CGFO_REFRESH_NODES = 30
 FRAC_TOL = 1e-4
 
 
@@ -156,6 +157,10 @@ class BranchAndPriceResult:
     y1_lazy_created: int = 0
     lazy_popped: int = 0
     dfs_popped: int = 0
+    nodes_unresolved: int = 0
+    best_solution: SolutionResult | None = None
+    primal_history: list[dict] = field(default_factory=list)
+    primal_stats: dict = field(default_factory=dict)
 
 
 class BranchAndPriceSolver:
@@ -180,6 +185,8 @@ class BranchAndPriceSolver:
         lazy_y1_cg_cap: float = DEFAULT_BP_LAZY_Y1_CG_CAP,
         strict_cg_certification: bool = False,
         strict_cg_node_time_limit: float = 120.0,
+        upper_bound_strategy: str = "adaptive",
+        primal_config: PrimalHeuristicConfig | None = None,
     ) -> None:
         if branch_strategy not in BP_STRATEGIES:
             raise ValueError(f"branch_strategy must be one of {BP_STRATEGIES}")
@@ -191,7 +198,11 @@ class BranchAndPriceSolver:
         self.mip_gap = mip_gap
         self.time_limit = time_limit
         self.cg_kwargs = dict(cg_kwargs or {})
-        # Kept for API compat; UB path ignores these (CGFO + integer LRMP only).
+        if upper_bound_strategy not in ("adaptive", "cgfo"):
+            raise ValueError("upper_bound_strategy must be adaptive or cgfo")
+        self.upper_bound_strategy = upper_bound_strategy
+        self.primal_config = primal_config or PrimalHeuristicConfig()
+        # Kept for API compatibility; primal heuristics use explicit budgets.
         self.use_node_im = use_node_im
         self.root_im = root_im
         self.final_im = final_im
@@ -204,11 +215,9 @@ class BranchAndPriceSolver:
         if strict_cg_node_time_limit <= 0:
             raise ValueError("strict_cg_node_time_limit must be positive")
         self.strict_cg_node_time_limit = float(strict_cg_node_time_limit)
-        self.cgfo_refresh_nodes = CGFO_REFRESH_NODES
         self._pricing_pool: ProcessPoolExecutor | None = None
         self._pricing_shared = None
         self._ebrp_contexts = None
-        self._nodes_at_last_cgfo = 0
         self._strict_unresolved_cg = False
         self.ml_sb_refine_k = ML_SB_REFINE_K
         self.ml_sb_child_tlim = ML_SB_CHILD_TLIM
@@ -504,31 +513,123 @@ class BranchAndPriceSolver:
                 return im.objective, fixed_y
         return incumbent, fixed_y
 
-    def _try_cgfo(
-        self,
-        cg: ColumnGenerationSolver,
-        incumbent: float | None,
-        budget: float,
-        *,
-        merge_fixed_y: dict[SetupFix, int] | None = None,
-    ) -> tuple[float | None, dict[SetupFix, int] | None]:
-        """CGFO：由分数列支撑构造允许 setup，其余 Y=0，再解受限 IM。"""
+    def _try_root_irmp(self, cg, incumbent, budget):
+        """Initialize root CGFO; IRMP is never invoked at branch nodes."""
+        if self._current_node_id != 0:
+            raise RuntimeError("IRMP initialization is restricted to the root")
         if budget <= 1.0:
-            return incumbent, None
-        cgfo_t0 = time.perf_counter()
-        selected = cg.get_selected_columns(threshold=CGFO_THRESHOLD_II)
-        allowed = _build_allowed_setup(self.data, selected)
-        if not allowed:
-            self._time_cgfo += time.perf_counter() - cgfo_t0
-            return incumbent, None
-        cgfo_fy = _build_fixed_y(self.data, allowed)
-        if merge_fixed_y:
-            cgfo_fy = {**cgfo_fy, **merge_fixed_y}
-        new_ub, new_fy = self._try_incumbent(cgfo_fy, incumbent, budget)
-        self._time_cgfo += time.perf_counter() - cgfo_t0
-        if new_ub is not None and (incumbent is None or new_ub < incumbent - INT_TOL):
-            return new_ub, new_fy
-        return incumbent, None
+            return incumbent
+        started = time.perf_counter()
+        obj = cg.solve_rmp_ip(time_limit=budget, mip_gap=0.01, threads=self.primal_config.threads)
+        self._time_irmp += time.perf_counter() - started
+        self._primal_stats["irmp_calls"] += 1
+        improved = obj is not None and (incumbent is None or obj < incumbent - INT_TOL)
+        diagnostic = dict(cg.last_irmp_diagnostics or {})
+        diagnostic.update(node_id=0, nodes=self._current_node_count, root=True,
+                          incumbent_before=incumbent, improved=improved)
+        self._primal_stats["irmp_attempts"].append(diagnostic)
+        if improved:
+            if cg.last_integer_solution is None:
+                raise RuntimeError("Root IRMP has no saved integer schedule")
+            self._primal_stats["irmp_improvements"] += 1
+            return self._accept_primal(cg.last_integer_solution, incumbent, "irmp")
+        return incumbent
+
+    def _accept_primal(
+        self, candidate: SolutionResult, incumbent: float | None, source: str,
+    ) -> float | None:
+        if candidate.objective is None or (
+            incumbent is not None and candidate.objective >= incumbent - INT_TOL
+        ):
+            return incumbent
+        validate_primal(self.data, candidate)
+        self._best_solution = candidate
+        self._last_primal_improvement_node = self._current_node_count
+        event = {
+            "elapsed_sec": time.perf_counter() - self._solve_started,
+            "nodes": self._current_node_count, "node_id": self._current_node_id,
+            "source": source, "objective": candidate.objective,
+        }
+        self._primal_history.append(event)
+        print(f"    [{source}] incumbent={candidate.objective:.2f} "
+              f"(nodes={self._current_node_count}, elapsed={event['elapsed_sec']:.1f}s)", flush=True)
+        return candidate.objective
+
+    def _accept_integer_master(self, cg, incumbent):
+        candidate = snapshot_integer_master(cg, method="integer_lrmp")
+        return self._accept_primal(candidate, incumbent, "integer_lrmp")
+
+    def _try_cgfo_repair(self, cg, incumbent, budget, *, root=False):
+        if budget <= 1.0:
+            return incumbent
+        config = self.primal_config
+        support = lp_setup_support(cg)
+        fixed_y, fixed_x, released = cgfo_restrictions(
+            self.data, support, self._best_solution,
+            release_count=None if root else config.repair_machines,
+            rotation=self._primal_stats["cgfo_calls"],
+        )
+        # Re-solving the same restricted MIP after no new information is wasteful.
+        stamp = (incumbent, tuple(released), tuple(sorted(fixed_y.items())))
+        if stamp in self._cgfo_attempted_neighborhoods:
+            self._primal_stats["cgfo_repeated_skipped"] += 1
+            return incumbent
+        self._cgfo_attempted_neighborhoods.add(stamp)
+        t0 = time.perf_counter()
+        candidate = solve_im(
+            self.data, time_limit=budget, mip_gap=0.01,
+            fixed_y=fixed_y, fixed_x=fixed_x, mip_start=self._best_solution,
+            threads=config.threads, budget_includes_build=True, primal_focus=True,
+            method="bp_cgfo_root" if root else "bp_cgfo_repair",
+        )
+        elapsed = time.perf_counter() - t0
+        self._time_cgfo += elapsed
+        self._primal_stats["cgfo_calls"] += 1
+        self._primal_stats["cgfo_root_calls" if root else "cgfo_repair_calls"] += 1
+        event = {"nodes": self._current_node_count, "released_machines": released,
+                 "budget_sec": budget, "runtime_sec": elapsed,
+                 "objective": candidate.objective, "root": root}
+        self._primal_stats["cgfo_attempts"].append(event)
+        if candidate.objective is not None and (
+            incumbent is None or candidate.objective < incumbent - INT_TOL
+        ):
+            self._primal_stats["cgfo_improvements"] += 1
+            return self._accept_primal(candidate, incumbent, "cgfo_root" if root else "cgfo_repair")
+        return incumbent
+
+    def _run_upper_bound_heuristics(self, cg, incumbent, node, deadline):
+        """Root IRMP initialization + CGFO; tree nodes use local repair only."""
+        if cg._model is None or (_q_integer(cg) and _r_integer(cg)):
+            return incumbent
+        config = self.primal_config
+        root = node.node_id == 0
+
+        def available(requested):
+            remaining = float("inf") if deadline is None else deadline - time.perf_counter() - 1.0
+            if not root:
+                elapsed = time.perf_counter() - self._solve_started
+                allowance = (config.root_irmp_seconds + config.root_cgfo_seconds
+                             + config.node_time_fraction * elapsed - self._time_irmp - self._time_cgfo)
+                remaining = min(remaining, allowance)
+            return max(0.0, min(requested, remaining))
+
+        if root and self.upper_bound_strategy == "adaptive":
+            incumbent = self._try_root_irmp(cg, incumbent, available(config.root_irmp_seconds))
+
+        root_gap_closed = (root and incumbent is not None and cg.converged
+                           and node.lower_bound >= incumbent - max(INT_TOL, abs(incumbent) * self.mip_gap))
+        interval = config.repair_interval * min(config.max_backoff, 2 ** self._cgfo_failures)
+        stalled = self._current_node_count - self._last_primal_improvement_node >= config.stall_nodes
+        if not root_gap_closed and (
+            root or (stalled and self._current_node_count - self._nodes_at_last_cgfo >= interval)
+        ):
+            budget = available(config.root_cgfo_seconds if root else config.repair_seconds)
+            if budget >= 5.0:
+                before = incumbent
+                incumbent = self._try_cgfo_repair(cg, incumbent, budget, root=root)
+                self._cgfo_failures = 0 if incumbent != before else min(self._cgfo_failures + 1, 3)
+                self._nodes_at_last_cgfo = self._current_node_count
+        return incumbent
 
     def _push_lazy(
         self,
@@ -552,10 +653,25 @@ class BranchAndPriceSolver:
         heapq.heappush(open_heap, (child.lb_estimate, child.node_id, child))
 
     @staticmethod
+    def _node_dual_bound(node: BranchNode) -> float:
+        """A scheduling priority is never an optimality certificate."""
+        bounds = [node.lower_bound]
+        if node.parent_lb is not None:
+            bounds.append(node.parent_lb)
+        valid = [float(lb) for lb in bounds if not math.isnan(float(lb))]
+        return max(valid) if valid else float("-inf")
+
+    def _park_unresolved_node(self, node: BranchNode) -> None:
+        """Retain an abandoned node's bound without pretending it was fathomed."""
+        if not hasattr(self, "_unresolved_node_bounds"):
+            self._unresolved_node_bounds = {}
+        self._unresolved_node_bounds[node.node_id] = self._node_dual_bound(node)
+
+    @staticmethod
     def _heap_min_lb(heap: list[tuple[float, int, BranchNode]] | None) -> float | None:
         if not heap:
             return None
-        return min(est for est, _nid, _n in heap)
+        return min(BranchAndPriceSolver._node_dual_bound(node) for _priority, _nid, node in heap)
 
     def _tree_dual_bound(
         self,
@@ -564,18 +680,17 @@ class BranchAndPriceSolver:
         dfs_stack: list[BranchNode],
         current_lb: float | None = None,
     ) -> float | None:
-        """全局对偶下界 = 开节点（含 lazy/DFS）LB 估计的最小值（+ 可选当前手中节点）。"""
+        """Minimum certified bound across all open and unresolved nodes."""
         vals: list[float] = []
         if current_lb is not None and math.isfinite(current_lb):
             vals.append(current_lb)
         for h in (open_heap, lazy_heap):
             m = self._heap_min_lb(h)
-            if m is not None and math.isfinite(m):
+            if m is not None:
                 vals.append(m)
         for n in dfs_stack:
-            est = n.lb_estimate if n.lb_estimate > float("-inf") else n.lower_bound
-            if math.isfinite(est):
-                vals.append(est)
+            vals.append(self._node_dual_bound(n))
+        vals.extend(getattr(self, "_unresolved_node_bounds", {}).values())
         return min(vals) if vals else None
 
     @staticmethod
@@ -595,7 +710,7 @@ class BranchAndPriceSolver:
         current_lb: float | None = None,
     ) -> tuple[bool, float | None, float | None]:
         """若 mip_gap>0 且 (UB−全局LB)/UB ≤ mip_gap，返回 (True, gap, tree_lb)。"""
-        if self.mip_gap <= 0 or incumbent is None:
+        if self.mip_gap <= 0 or incumbent is None or getattr(self, "_unresolved_node_bounds", {}):
             return False, None, None
         tree_lb = self._tree_dual_bound(open_heap, lazy_heap, dfs_stack, current_lb)
         gap = self._rel_gap(incumbent, tree_lb)
@@ -923,10 +1038,24 @@ class BranchAndPriceSolver:
 
     def _solve_impl(self) -> BranchAndPriceResult:
         start = time.perf_counter()
+        self._solve_started = start
         self._time_cg = 0.0
         self._time_master = 0.0
         self._time_pricing = 0.0
+        self._time_irmp = 0.0
         self._time_cgfo = 0.0
+        self._best_solution = None
+        self._primal_history = []
+        self._primal_stats = {"irmp_calls": 0, "irmp_improvements": 0, "irmp_attempts": [],
+                              "cgfo_calls": 0, "cgfo_improvements": 0,
+                              "cgfo_root_calls": 0, "cgfo_repair_calls": 0,
+                              "cgfo_repeated_skipped": 0, "cgfo_attempts": []}
+        self._current_node_count = self._current_node_id = 0
+        self._last_primal_improvement_node = 0
+        self._nodes_at_last_cgfo = 0
+        self._cgfo_failures = 0
+        self._cgfo_attempted_neighborhoods = set()
+        self._unresolved_node_bounds: dict[int, float] = {}
         reset_ebrp_time()
         self._start_pricing_pool()
         deadline = start + self.time_limit if self.time_limit else None
@@ -987,6 +1116,7 @@ class BranchAndPriceSolver:
                 remaining = deadline - time.perf_counter()
                 if remaining <= 1.0:
                     timed_out = True
+                    self._park_unresolved_node(node)
                     break
                 if self.strict_cg_certification:
                     # Paper-aligned runs use an explicit node CG budget and
@@ -1035,7 +1165,7 @@ class BranchAndPriceSolver:
                     self._strict_unresolved_cg = False
 
             raw_lb = getattr(cg, "last_valid_lb", None)
-            if raw_lb is None and cg.lrmp_obj is not None:
+            if raw_lb is None and cg.lrmp_obj is not None and getattr(cg, "converged", False):
                 raw_lb = cg.lrmp_obj
 
             if cg.stop_reason in ("infeasible_master", "pruned_by_incumbent") or (
@@ -1093,7 +1223,7 @@ class BranchAndPriceSolver:
                     floor_lb = (
                         node.parent_lb
                         if node.parent_lb is not None
-                        else (node.lb_estimate if math.isfinite(node.lb_estimate) else 0.0)
+                        else self._node_dual_bound(node)
                     )
                     self._push_heap(open_heap, node, float(floor_lb), defer=False)
                     print(
@@ -1105,6 +1235,7 @@ class BranchAndPriceSolver:
                         flush=True,
                     )
                 else:
+                    self._park_unresolved_node(node)
                     why = (
                         f"max retries={max_retries}"
                         if node.cg_fail_retries >= max_retries
@@ -1121,8 +1252,8 @@ class BranchAndPriceSolver:
             # Parent LB is dual-safe for the child (child IP OPT ≥ parent IP OPT).
             # Floor incomplete CG duals so best-bound / tree_lb cannot collapse.
             floor = node.parent_lb
-            if floor is None and node.lb_estimate > float("-inf"):
-                floor = node.lb_estimate
+            if floor is None:
+                floor = self._node_dual_bound(node)
             if floor is not None and math.isfinite(floor):
                 node.lower_bound = max(float(raw_lb), float(floor))
             else:
@@ -1179,6 +1310,8 @@ class BranchAndPriceSolver:
                             float(node.parent_lb if node.parent_lb is not None else node.lb_estimate),
                             defer=False,
                         )
+                    else:
+                        self._park_unresolved_node(node)
                     # Whether requeued or exhausted, do not continue to the
                     # branching logic below with a partial-CG relaxation.
                     continue
@@ -1238,6 +1371,7 @@ class BranchAndPriceSolver:
                             flush=True,
                         )
                     else:
+                        self._park_unresolved_node(node)
                         print(
                             f"  BP [{nodes_explored}/{self.max_nodes}] node {node.node_id} "
                             f"partial-CG has no primal; abandon ({cg_sec:.1f}s)",
@@ -1253,21 +1387,11 @@ class BranchAndPriceSolver:
                     gap_stopped = True
                 continue
 
-            # --- 上界：仅 CGFO + 整数 LRMP（见下方整数检测）---
-            # 根节点：只做一次 CGFO
+            self._current_node_count = nodes_explored
+            self._current_node_id = node.node_id
+            incumbent = self._run_upper_bound_heuristics(cg, incumbent, node, deadline)
             if node.node_id == 0 and not root_ub_done and deadline is not None:
                 root_ub_done = True
-                remaining = deadline - time.perf_counter()
-                if remaining > 12.0:
-                    cgfo_budget = min(40.0, remaining * 0.12)
-                    new_ub, new_fy = self._try_cgfo(cg, incumbent, cgfo_budget)
-                    if new_fy is not None and new_ub is not None:
-                        incumbent, best_fixed_y = new_ub, new_fy
-                        print(
-                            f"    [CGFO] incumbent={incumbent:.2f} (budget={cgfo_budget:.0f}s)",
-                            flush=True,
-                        )
-                self._nodes_at_last_cgfo = nodes_explored
                 if (
                     getattr(cg, "converged", False)
                     and incumbent is not None
@@ -1300,29 +1424,6 @@ class BranchAndPriceSolver:
                     gap_stopped = True
                     continue
 
-            # 根节点之后每处理 30 个节点再求一次上界。CGFO 用的是当前节点的分数列，
-            # 分支一批之后这组列才变；下界比例在树的前几层跳得快、后面又几乎不动。
-            if (
-                node.node_id != 0
-                and deadline is not None
-                and nodes_explored - self._nodes_at_last_cgfo >= self.cgfo_refresh_nodes
-            ):
-                remaining = deadline - time.perf_counter()
-                if remaining > 20.0:
-                    self._nodes_at_last_cgfo = nodes_explored
-                    cgfo_budget = min(20.0, remaining * 0.08)
-                    new_ub, new_fy = self._try_cgfo(
-                        cg, incumbent, cgfo_budget, merge_fixed_y=node.fixed_y
-                    )
-                    if new_fy is not None and new_ub is not None:
-                        incumbent, best_fixed_y = new_ub, new_fy
-                        print(
-                            f"    [CGFO refresh] incumbent={incumbent:.2f} "
-                            f"(nodes={nodes_explored}, depth={node.depth}, "
-                            f"budget={cgfo_budget:.0f}s)",
-                            flush=True,
-                        )
-
             if incumbent is not None and node.lower_bound >= incumbent - INT_TOL:
                 nodes_pruned += 1
                 if self._note_gap_stop(
@@ -1338,13 +1439,10 @@ class BranchAndPriceSolver:
                 int_cost = cg.lrmp_obj
                 if int_cost is not None:
                     if incumbent is None or int_cost < incumbent - INT_TOL:
-                        incumbent = int_cost
-                        print(f"    [integer LRMP] incumbent={incumbent:.2f}", flush=True)
-                    if (
-                        getattr(cg, "converged", False)
-                        and abs(node.lower_bound - incumbent) <= INT_TOL
-                    ):
-                        proved_optimal = True
+                        incumbent = self._accept_integer_master(cg, incumbent)
+                    # An integer optimum closes this node, not its siblings.
+                    if not getattr(cg, "converged", False):
+                        self._park_unresolved_node(node)
                     elif self._note_gap_stop(
                         incumbent, open_heap, lazy_heap, dfs_stack, nodes_explored
                     ):
@@ -1360,6 +1458,8 @@ class BranchAndPriceSolver:
                 dec = self._frac_sb_refine(node, cg, incumbent, deadline, dec)
             if dec is None:
                 best_cg = cg
+                self._park_unresolved_node(node)
+                print(f"  BP node {node.node_id}: fractional master has no branch candidate; bound retained", flush=True)
                 continue
 
             inherited = copy_column_pool(cg.columns)
@@ -1386,15 +1486,7 @@ class BranchAndPriceSolver:
                 stats,
             )
 
-            # Memory management: cap heap sizes to prevent OOM
-            if open_heap and len(open_heap) > 300:
-                open_heap.sort(key=lambda x: x[0])  # best-bound first
-                open_heap = open_heap[:300]
-                heapq.heapify(open_heap)
-            if lazy_heap and len(lazy_heap) > 300:
-                lazy_heap.sort(key=lambda x: x[0])
-                lazy_heap = lazy_heap[:300]
-                heapq.heapify(lazy_heap)
+            # Every live node must remain represented until validly fathomed.
             if nodes_explored % 20 == 0:
                 gc.collect()
 
@@ -1402,6 +1494,7 @@ class BranchAndPriceSolver:
                 incumbent is not None
                 and not self._has_pending(dfs_stack, lazy_heap, open_heap)
                 and nodes_cg_failed == 0
+                and not self._unresolved_node_bounds
             ):
                 proved_optimal = True
                 continue
@@ -1436,16 +1529,16 @@ class BranchAndPriceSolver:
                     f"B&P audit found a better IM incumbent: {audit.objective:.6f} "
                     f"< {incumbent:.6f}; certificate is invalid"
                 )
-                incumbent = audit.objective
+                incumbent = self._accept_primal(audit, incumbent, "audit")
                 audit_found_better_ub = True
 
         # 结束：保留搜索中得到的最好可行解上界。
-        pending = self._has_pending(dfs_stack, lazy_heap, open_heap)
+        pending = self._has_pending(dfs_stack, lazy_heap, open_heap) or bool(self._unresolved_node_bounds)
         tree_lb = self._tree_dual_bound(open_heap, lazy_heap, dfs_stack)
         if tree_lb is None and root_valid_lb is not None:
             tree_lb = root_valid_lb
         # 开节点队列已空 + 全程无 CG 失败 ⇒ 可证优
-        if (proved_optimal and nodes_cg_failed == 0) or (
+        if (proved_optimal and nodes_cg_failed == 0 and not self._unresolved_node_bounds) or (
             incumbent is not None
             and not pending
             and not timed_out
@@ -1467,6 +1560,8 @@ class BranchAndPriceSolver:
         elif nodes_cg_failed > 0 and not pending:
             # 树已探完，但有节点 CG 失败，不能把上界当作已证最优
             status = "unproven_cg_fail"
+        elif self._unresolved_node_bounds:
+            status = "unproven_nodes"
         else:
             status = "stopped_early"
 
@@ -1533,12 +1628,22 @@ class BranchAndPriceSolver:
             max_depth=max_depth,
             runtime_sec=core_runtime,
             audit_runtime_sec=audit_runtime,
-            best_fixed_y=best_fixed_y,
+            best_fixed_y=(
+                {(u, m, t): int(self._best_solution.setup.get(machine, {}).get(config, {}).get(period, 0) > 0.5)
+                 for m, machine in enumerate(self.data.machines)
+                 for u, config in enumerate(self.data.configs)
+                 for t, period in enumerate(self.data.periods)}
+                if self._best_solution is not None else best_fixed_y
+            ),
             cg_solver=best_cg,
             nodes_created=next_id,
             y1_lazy_created=stats["y1_lazy_created"],
             lazy_popped=stats["lazy_popped"],
             dfs_popped=stats["dfs_popped"],
+            nodes_unresolved=len(self._unresolved_node_bounds),
+            best_solution=self._best_solution,
+            primal_history=list(self._primal_history),
+            primal_stats=dict(self._primal_stats),
         )
 
 
@@ -1569,7 +1674,7 @@ def solve_branch_and_price(
         branch_strategy=branch_strategy,
     )
     result = bp.solve()
-    return SolutionResult(
+    solution = result.best_solution or SolutionResult(
         method="branch_and_price",
         instance_name=data.raw.name,
         status=result.status,
@@ -1582,7 +1687,18 @@ def solve_branch_and_price(
              else None)
         ),
         runtime_sec=result.runtime_sec,
-        extra={
+    )
+    solution.method = "branch_and_price"
+    solution.status = result.status
+    solution.objective = result.objective
+    solution.lower_bound = result.lower_bound
+    solution.mip_gap = (
+        0.0 if result.status == "optimal" else
+        (max(0.0, (result.objective - result.lower_bound) / abs(result.objective) * 100)
+         if result.objective and result.lower_bound is not None else None)
+    )
+    solution.runtime_sec = result.runtime_sec
+    solution.extra.update({
             "nodes_explored": result.nodes_explored,
             "nodes_created": result.nodes_created,
             "nodes_pruned": result.nodes_pruned,
@@ -1599,5 +1715,8 @@ def solve_branch_and_price(
             "lazy_popped": result.lazy_popped,
             "dfs_popped": result.dfs_popped,
             "branch_strategy": branch_strategy,
-        },
-    )
+            "upper_bound_strategy": bp.upper_bound_strategy,
+            "primal_history": result.primal_history,
+            "primal_stats": result.primal_stats,
+        })
+    return solution
